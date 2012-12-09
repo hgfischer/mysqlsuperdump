@@ -1,3 +1,10 @@
+// Copyright 2012 Herbert G. Fischer. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// mysqlsuperdump is a program that generates MySQL partial and secure dumps
+// With it you can specify the WHERE clause for each table being dumped and
+// also value replacements for each table.column.
 package main
 
 import (
