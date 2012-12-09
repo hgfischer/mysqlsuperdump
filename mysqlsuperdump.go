@@ -85,6 +85,7 @@ func parseCommandLine() {
 	return
 }
 
+// Read config file, inclusing wheres and selects maps
 func readConfigFile() {
 	cfg, err := conf.ReadConfigFile(configFile)
 	checkError(err)
@@ -120,6 +121,7 @@ func readConfigFile() {
 	}
 }
 
+// Get list of existing tables in database
 func getTables(db mysql.Conn) (tables []string) {
 	tables = make([]string, 0)
 	rows, _, err := db.Query("SHOW TABLES")
@@ -132,6 +134,7 @@ func getTables(db mysql.Conn) (tables []string) {
 	return
 }
 
+// Dump the script to create the table
 func dumpCreateTable(w io.Writer, db mysql.Conn, table string) {
 	fmt.Fprintf(w, "\n--\n")
 	fmt.Fprintf(w, "-- Table structure for table `%s`\n", table)
@@ -142,6 +145,8 @@ func dumpCreateTable(w io.Writer, db mysql.Conn, table string) {
 	fmt.Fprintf(w, "%s;\n", row.Str(1))
 }
 
+// Get the column list for the SELECT, applying the select map
+// from config file.
 func getColumnListForSelect(db mysql.Conn, table string) (string) {
 	columns := make([]string, 0)
 	rows, res, err := db.Query("SHOW COLUMNS FROM `%s`", table)
@@ -157,6 +162,7 @@ func getColumnListForSelect(db mysql.Conn, table string) (string) {
 	return strings.Join(columns, ", ")
 }
 
+// Get the complete SELECT query to fetch data from database
 func getSelectQueryFor(db mysql.Conn, table string) (query string) {
 	columns := getColumnListForSelect(db, table)
 	query = fmt.Sprintf("SELECT %s FROM `%s`", columns, table)
@@ -167,30 +173,63 @@ func getSelectQueryFor(db mysql.Conn, table string) (query string) {
 	return
 }
 
+// Get the number of rows the select will return
+func getSelectCountQueryFor(db mysql.Conn, table string) (query string) {
+	query = fmt.Sprintf("SELECT COUNT(*) FROM `%s`", table)
+	where, ok := whereMap[table]
+	if ok {
+		query = fmt.Sprintf("%s WHERE %s", query, where)
+	}
+	return
+}
+
+// Get the table data
 func dumpTableData(w io.Writer, db mysql.Conn, table string) {
-	fmt.Fprintf(w, "\n--\n")
-	fmt.Fprintf(w, "-- Dumping data for table `%s`\n", table)
-	fmt.Fprintf(w, "--\n\n")
+	fmt.Fprintf(w, "\n--\n-- Dumping data for table `%s`\n--\n\n", table)
+
+	rowCnt, _, err := db.QueryFirst(getSelectCountQueryFor(db, table))
+	checkError(err)
+	if rowCnt.Int(0) == 0 {
+		fmt.Fprintf(w, "--\n-- Empty table\n--\n\n")
+		return
+	} else {
+		fmt.Fprintf(w, "--\n-- %d rows\n--\n\n", rowCnt.Int(0))
+	}
+
 	fmt.Fprintf(w, "LOCK TABLES `%s` WRITE;\n", table)
-	query := fmt.Sprintf("INSERT INTO `%s` SET", table)
+	query := fmt.Sprintf("INSERT INTO `%s` VALUES", table)
+	rows := make([]string, 0)
+
 	res, err := db.Start(getSelectQueryFor(db, table))
 	checkError(err)
 	row := res.MakeRow()
+
 	for {
 		err = res.ScanRow(row)
 		if err == io.EOF {
 			break
 		}
 		checkError(err)
-		sets := make([]string, 0)
+
+		vals := make([]string, 0)
 		for k, col := range row {
 			val := "NULL"
 			if col != nil {
 				val = fmt.Sprintf("'%s'", db.EscapeString(row.Str(k)))
 			}
-			sets = append(sets, fmt.Sprintf("`%s`=%s", res.Fields()[k].Name, val))
+			vals = append(vals, val)
 		}
-		fmt.Fprintf(w, "%s %s;\n", query, strings.Join(sets, ", "))
+
+		rows = append(rows, fmt.Sprintf("( %s )", strings.Join(vals, ", ")))
+		if (len(rows) >= 100) {
+			fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(rows, ",\n"))
+			rows = make([]string, 0)
+		}
 	}
+
+	if (len(rows) > 0) {
+		fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(rows, ",\n"))
+	}
+
 	fmt.Fprintf(w, "\nUNLOCK TABLES;\n")
 }
