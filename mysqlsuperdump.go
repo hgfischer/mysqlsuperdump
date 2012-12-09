@@ -187,5 +187,5 @@ func dumpTableData(w io.Writer, db mysql.Conn, table string) {
 		}
 		fmt.Fprintf(w, "%s %s;\n", query, strings.Join(sets, ", "))
 	}
-	fmt.Fprintf(w, "\nUNLOCK TABLES;\n", table)
+	fmt.Fprintf(w, "\nUNLOCK TABLES;\n")
 }
