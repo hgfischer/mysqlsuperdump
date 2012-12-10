@@ -10,12 +10,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
-	"io"
-	"strings"
 	"github.com/hgfischer/goconf"
 	"github.com/ziutek/mymysql/mysql"
 	_ "github.com/ziutek/mymysql/native"
+	"io"
+	"os"
+	"strings"
 )
 
 var (
@@ -99,7 +99,7 @@ func readConfigFile() {
 	hostname, err = cfg.GetString("mysql", "hostname")
 	checkError(err)
 	port, err = cfg.GetInt("mysql", "port")
-	checkError(err);
+	checkError(err)
 	username, err = cfg.GetString("mysql", "username")
 	checkError(err)
 	password, err = cfg.GetString("mysql", "password")
@@ -113,7 +113,7 @@ func readConfigFile() {
 		split := strings.Split(tablecol, ".")
 		table := split[0]
 		column := split[1]
-		if (selectMap[table] == nil) {
+		if selectMap[table] == nil {
 			selectMap[table] = make(map[string]string, 0)
 		}
 		selectMap[table][column], err = cfg.GetString("select", tablecol)
@@ -154,7 +154,7 @@ func dumpCreateTable(w io.Writer, db mysql.Conn, table string) {
 
 // Get the column list for the SELECT, applying the select map
 // from config file.
-func getColumnListForSelect(db mysql.Conn, table string) (string) {
+func getColumnListForSelect(db mysql.Conn, table string) string {
 	columns := make([]string, 0)
 	rows, res, err := db.Query("SHOW COLUMNS FROM `%s`", table)
 	checkError(err)
@@ -228,13 +228,13 @@ func dumpTableData(w io.Writer, db mysql.Conn, table string) {
 		}
 
 		rows = append(rows, fmt.Sprintf("( %s )", strings.Join(vals, ", ")))
-		if (len(rows) >= 100) {
+		if len(rows) >= 100 {
 			fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(rows, ",\n"))
 			rows = make([]string, 0)
 		}
 	}
 
-	if (len(rows) > 0) {
+	if len(rows) > 0 {
 		fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(rows, ",\n"))
 	}
 
