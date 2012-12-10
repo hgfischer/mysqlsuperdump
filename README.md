@@ -22,12 +22,9 @@ Python and MySQLdb library. So I've decided to rewrite it using Go (golang).
 
 ## Usage
 
-* Clone the repository
-* Download Go 1.0.3 or newer from http://golang.org, and install it
-* Build mysqlduperdump running "go build" inside the project directory
-* If you set your Go environment vars correctly, you can even use "go install" instead 
-  of "go build", so the binary will be installed in the appropriate bin directory also 
-  visible by your $PATH
-* Create a mysqlsuperdump.cfg config file and place where you like it. Use the included
-  mysqlsuperdump.cfg as an example of setup
-* Run mysqlsuperdump -h to see command line options and _voilá_
+* Clone the repository.
+* Download Go 1.0.3 or newer from http://golang.org, and install it. Remember to set your $PATH env var.
+* Build mysqlduperdump running "sudo go get && sudo go install" inside the project directory.
+* Create a mysqlsuperdump.cfg config file and place where you like it. Use the included.
+  mysqlsuperdump.cfg as an example of setup.
+* Run mysqlsuperdump -h to see command line options and _voilá_.
