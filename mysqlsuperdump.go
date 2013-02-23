@@ -28,7 +28,16 @@ var (
 	whereMap   = make(map[string]string, 0)
 	selectMap  = make(map[string]map[string]string, 0)
 	output     = flag.String("o", "", "Output path. Default is stdout")
+	verbose    = Verbose(*flag.Bool("v", false, "Enable verbosity"))
 )
+
+type Verbose bool
+
+func (this Verbose) Printf(s string, a ...interface{}) {
+	if this {
+		fmt.Printf(s, a...)
+	}
+}
 
 // MAIN
 func main() {
@@ -41,6 +50,7 @@ func main() {
 	raddr := fmt.Sprintf("%s:%d", hostname, port)
 	db := mysql.New("tcp", "", raddr, username, password, database)
 	db.Register("SET NAMES utf8")
+	verbose.Printf("Connecting to MySQL database %s at %s@%s\n", database, username, raddr)
 	err = db.Connect()
 	checkError(err)
 
@@ -54,8 +64,10 @@ func main() {
 	fmt.Fprintf(w, "SET NAMES utf8;\n")
 	fmt.Fprintf(w, "SET FOREIGN_KEY_CHECKS = 0;\n")
 
+	verbose.Printf("Getting table list...\n")
 	tables := getTables(db)
 	for _, table := range tables {
+		verbose.Printf("Dumping structure and data for table %s.%s...\n", database, table)
 		dumpCreateTable(w, db, table)
 		dumpTableData(w, db, table)
 	}
@@ -228,7 +240,7 @@ func dumpTableData(w io.Writer, db mysql.Conn, table string) {
 		}
 
 		rows = append(rows, fmt.Sprintf("( %s )", strings.Join(vals, ", ")))
-		if len(rows) >= 100 {
+		if len(rows) >= 00 {
 			fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(rows, ",\n"))
 			rows = make([]string, 0)
 		}
