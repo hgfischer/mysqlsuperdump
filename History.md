@@ -1,4 +1,12 @@
 
+0.2.0 / 2013-03-01 
+==================
+
+  * Updated to use a fastest MySQL driver
+  * Changed config format for MySQL connection
+  * Added option for number of rows in each extended insert
+  * Implemented neat idea to verbosity in code
+
 0.1.1 / 2012-12-10 
 ==================
 
