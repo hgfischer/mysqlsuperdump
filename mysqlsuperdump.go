@@ -1,4 +1,4 @@
-// Copyright 2012 Herbert G. Fischer. All rights reserved.
+// Copyright 2012-2013 Herbert G. Fischer. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -8,27 +8,35 @@
 package main
 
 import (
+	"bytes"
+	"database/sql"
 	"flag"
 	"fmt"
+	_ "github.com/Go-SQL-Driver/MySQL"
 	"github.com/hgfischer/goconf"
-	"github.com/ziutek/mymysql/mysql"
-	_ "github.com/ziutek/mymysql/native"
 	"io"
 	"os"
 	"strings"
 )
 
 var (
-	configFile string
-	hostname   = "localhost"
-	port       = 3306
-	username   = "root"
-	password   string
-	database   = "mysql"
-	whereMap   = make(map[string]string, 0)
-	selectMap  = make(map[string]map[string]string, 0)
-	output     = flag.String("o", "", "Output path. Default is stdout")
+	configFile         string
+	dsn                string
+	extendedInsertRows int
+	whereMap           = make(map[string]string, 0)
+	selectMap          = make(map[string]map[string]string, 0)
+	output             = flag.String("o", "", "Output path. Default is stdout")
+	verboseFlag        = flag.Bool("v", false, "Enable verbosity")
+	verbose            Verbose
 )
+
+type Verbose bool
+
+func (this Verbose) Printf(s string, a ...interface{}) {
+	if this {
+		fmt.Printf(s, a...)
+	}
+}
 
 // MAIN
 func main() {
@@ -38,11 +46,10 @@ func main() {
 	parseCommandLine()
 	readConfigFile()
 
-	raddr := fmt.Sprintf("%s:%d", hostname, port)
-	db := mysql.New("tcp", "", raddr, username, password, database)
-	db.Register("SET NAMES utf8")
-	err = db.Connect()
+	verbose.Printf("Connecting to MySQL database at %s\n", dsn)
+	db, err := sql.Open("mysql", dsn)
 	checkError(err)
+	defer db.Close()
 
 	if *output == "" {
 		w = os.Stdout
@@ -54,8 +61,10 @@ func main() {
 	fmt.Fprintf(w, "SET NAMES utf8;\n")
 	fmt.Fprintf(w, "SET FOREIGN_KEY_CHECKS = 0;\n")
 
+	verbose.Printf("Getting table list...\n")
 	tables := getTables(db)
 	for _, table := range tables {
+		verbose.Printf("Dumping structure and data for table %s...\n", table)
 		dumpCreateTable(w, db, table)
 		dumpTableData(w, db, table)
 	}
@@ -66,8 +75,7 @@ func main() {
 // Check if err is not nil. If it's not, prints error and exit program
 func checkError(err error) {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-		os.Exit(-1)
+		panic(err)
 	}
 }
 
@@ -88,6 +96,7 @@ func parseCommandLine() {
 		fmt.Fprintf(os.Stderr, "Error: Missing parameters\n")
 		flag.Usage()
 	}
+	verbose = Verbose(*verboseFlag)
 	configFile = flag.Arg(0)
 	return
 }
@@ -96,15 +105,9 @@ func parseCommandLine() {
 func readConfigFile() {
 	cfg, err := conf.ReadConfigFile(configFile)
 	checkError(err)
-	hostname, err = cfg.GetString("mysql", "hostname")
+	dsn, err = cfg.GetString("mysql", "dsn")
 	checkError(err)
-	port, err = cfg.GetInt("mysql", "port")
-	checkError(err)
-	username, err = cfg.GetString("mysql", "username")
-	checkError(err)
-	password, err = cfg.GetString("mysql", "password")
-	checkError(err)
-	database, err = cfg.GetString("mysql", "database")
+	extendedInsertRows, err = cfg.GetInt("mysql", "extended_insert_rows")
 	checkError(err)
 
 	selects, err := cfg.GetOptions("select")
@@ -129,48 +132,50 @@ func readConfigFile() {
 }
 
 // Get list of existing tables in database
-func getTables(db mysql.Conn) (tables []string) {
+func getTables(db *sql.DB) (tables []string) {
 	tables = make([]string, 0)
-	rows, _, err := db.Query("SHOW TABLES")
+	rows, err := db.Query("SHOW TABLES")
 	checkError(err)
-	for _, row := range rows {
-		for k, _ := range row {
-			tables = append(tables, row.Str(k))
-		}
+	for rows.Next() {
+		var table string
+		err = rows.Scan(&table)
+		tables = append(tables, table)
 	}
+	checkError(rows.Err())
 	return
 }
 
 // Dump the script to create the table
-func dumpCreateTable(w io.Writer, db mysql.Conn, table string) {
+func dumpCreateTable(w io.Writer, db *sql.DB, table string) {
 	fmt.Fprintf(w, "\n--\n")
-	fmt.Fprintf(w, "-- Table structure for table `%s`\n", table)
+	fmt.Fprintf(w, "-- Structure for table `%s`\n", table)
 	fmt.Fprintf(w, "--\n\n")
 	fmt.Fprintf(w, "DROP TABLE IF EXISTS `%s`;\n", table)
-	row, _, err := db.QueryFirst("SHOW CREATE TABLE `%s`", table)
+	row := db.QueryRow(fmt.Sprintf("SHOW CREATE TABLE `%s`", table))
+	var tname, ddl string
+	err := row.Scan(&tname, &ddl)
 	checkError(err)
-	fmt.Fprintf(w, "%s;\n", row.Str(1))
+	fmt.Fprintf(w, "%s;\n", ddl)
 }
 
 // Get the column list for the SELECT, applying the select map
 // from config file.
-func getColumnListForSelect(db mysql.Conn, table string) string {
-	columns := make([]string, 0)
-	rows, res, err := db.Query("SHOW COLUMNS FROM `%s`", table)
+func getColumnListForSelect(db *sql.DB, table string) string {
+	rows, err := db.Query(fmt.Sprintf("SELECT * FROM `%s` LIMIT 1", table))
 	checkError(err)
-	for _, row := range rows {
-		column := row.Str(res.Map("Field"))
+	columns, err := rows.Columns()
+	checkError(err)
+	for k, column := range columns {
 		replacement, ok := selectMap[table][column]
 		if ok {
-			column = fmt.Sprintf("%s AS `%s`", replacement, column)
+			columns[k] = fmt.Sprintf("%s AS `%s`", replacement, column)
 		}
-		columns = append(columns, column)
 	}
 	return strings.Join(columns, ", ")
 }
 
 // Get the complete SELECT query to fetch data from database
-func getSelectQueryFor(db mysql.Conn, table string) (query string) {
+func getSelectQueryFor(db *sql.DB, table string) (query string) {
 	columns := getColumnListForSelect(db, table)
 	query = fmt.Sprintf("SELECT %s FROM `%s`", columns, table)
 	where, ok := whereMap[table]
@@ -181,7 +186,7 @@ func getSelectQueryFor(db mysql.Conn, table string) (query string) {
 }
 
 // Get the number of rows the select will return
-func getSelectCountQueryFor(db mysql.Conn, table string) (query string) {
+func getSelectCountQueryFor(db *sql.DB, table string) (query string) {
 	query = fmt.Sprintf("SELECT COUNT(*) FROM `%s`", table)
 	where, ok := whereMap[table]
 	if ok {
@@ -191,52 +196,85 @@ func getSelectCountQueryFor(db mysql.Conn, table string) (query string) {
 }
 
 // Get the table data
-func dumpTableData(w io.Writer, db mysql.Conn, table string) {
-	fmt.Fprintf(w, "\n--\n-- Dumping data for table `%s`\n--\n\n", table)
+func dumpTableData(w io.Writer, db *sql.DB, table string) {
+	fmt.Fprintf(w, "\n--\n-- Data for table `%s`", table)
 
-	rowCnt, _, err := db.QueryFirst(getSelectCountQueryFor(db, table))
+	var count uint64
+	row := db.QueryRow(getSelectCountQueryFor(db, table))
+	err := row.Scan(&count)
 	checkError(err)
-	if rowCnt.Int(0) == 0 {
-		fmt.Fprintf(w, "--\n-- Empty table\n--\n\n")
-		return
-	} else {
-		fmt.Fprintf(w, "--\n-- %d rows\n--\n\n", rowCnt.Int(0))
-	}
+	fmt.Fprintf(w, " -- %d rows\n--\n\n", count)
 
 	fmt.Fprintf(w, "LOCK TABLES `%s` WRITE;\n", table)
 	query := fmt.Sprintf("INSERT INTO `%s` VALUES", table)
-	rows := make([]string, 0)
+	data := make([]string, 0)
 
-	res, err := db.Start(getSelectQueryFor(db, table))
+	selectQuery := getSelectQueryFor(db, table)
+	rows, err := db.Query(selectQuery)
 	checkError(err)
-	row := res.MakeRow()
+	columns, err := rows.Columns()
+	checkError(err)
 
-	for {
-		err = res.ScanRow(row)
-		if err == io.EOF {
-			break
-		}
+	values := make([]*sql.RawBytes, len(columns))
+	scanArgs := make([]interface{}, len(values))
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+
+	for rows.Next() {
+		err = rows.Scan(scanArgs...)
 		checkError(err)
 
 		vals := make([]string, 0)
-		for k, col := range row {
+		for _, col := range values {
 			val := "NULL"
 			if col != nil {
-				val = fmt.Sprintf("'%s'", db.EscapeString(row.Str(k)))
+				val = fmt.Sprintf("'%s'", escape(string(*col)))
 			}
 			vals = append(vals, val)
 		}
 
-		rows = append(rows, fmt.Sprintf("( %s )", strings.Join(vals, ", ")))
-		if len(rows) >= 100 {
-			fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(rows, ",\n"))
-			rows = make([]string, 0)
+		data = append(data, fmt.Sprintf("( %s )", strings.Join(vals, ", ")))
+		if len(data) >= 100 {
+			fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(data, ",\n"))
+			data = make([]string, 0)
 		}
 	}
 
-	if len(rows) > 0 {
-		fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(rows, ",\n"))
+	if len(data) > 0 {
+		fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(data, ",\n"))
 	}
 
 	fmt.Fprintf(w, "\nUNLOCK TABLES;\n")
+}
+
+func escape(str string) string {
+	var esc string
+	var buf bytes.Buffer
+	last := 0
+	for i, c := range str {
+		switch c {
+		case 0:
+			esc = `\0`
+		case '\n':
+			esc = `\n`
+		case '\r':
+			esc = `\r`
+		case '\\':
+			esc = `\\`
+		case '\'':
+			esc = `\'`
+		case '"':
+			esc = `\"`
+		case '\032':
+			esc = `\Z`
+		default:
+			continue
+		}
+		io.WriteString(&buf, str[last:i])
+		io.WriteString(&buf, esc)
+		last = i + 1
+	}
+	io.WriteString(&buf, str[last:])
+	return buf.String()
 }
