@@ -26,16 +26,28 @@ var (
 	whereMap           = make(map[string]string, 0)
 	selectMap          = make(map[string]map[string]string, 0)
 	output             = flag.String("o", "", "Output path. Default is stdout")
-	verboseFlag        = flag.Bool("v", false, "Enable verbosity")
-	verbose            Verbose
+	verboseFlag        = flag.Bool("v", false, "Enable printing status information")
+	debugFlag          = flag.Bool("d", false, "Enable printing of debug information")
+	verbose            Bool
+	debug              Bool
 )
 
-type Verbose bool
+type Bool bool
 
-func (this Verbose) Printf(s string, a ...interface{}) {
-	if this {
+func (b Bool) Printf(s string, a ...interface{}) {
+	if b {
 		fmt.Printf(s, a...)
 	}
+}
+
+func Query(db *sql.DB, q string) (*sql.Rows, error) {
+	debug.Printf("%s\n", q)
+	return db.Query(q)
+}
+
+func QueryRow(db *sql.DB, q string) *sql.Row {
+	debug.Printf("%s\n", q)
+	return db.QueryRow(q)
 }
 
 // MAIN
@@ -96,8 +108,9 @@ func parseCommandLine() {
 		fmt.Fprintf(os.Stderr, "Error: Missing parameters\n")
 		flag.Usage()
 	}
-	verbose = Verbose(*verboseFlag)
 	configFile = flag.Arg(0)
+	verbose = Bool(*verboseFlag)
+	debug = Bool(*debugFlag)
 	return
 }
 
@@ -134,7 +147,7 @@ func readConfigFile() {
 // Get list of existing tables in database
 func getTables(db *sql.DB) (tables []string) {
 	tables = make([]string, 0)
-	rows, err := db.Query("SHOW TABLES")
+	rows, err := Query(db, "SHOW TABLES")
 	checkError(err)
 	for rows.Next() {
 		var table string
@@ -151,7 +164,7 @@ func dumpCreateTable(w io.Writer, db *sql.DB, table string) {
 	fmt.Fprintf(w, "-- Structure for table `%s`\n", table)
 	fmt.Fprintf(w, "--\n\n")
 	fmt.Fprintf(w, "DROP TABLE IF EXISTS `%s`;\n", table)
-	row := db.QueryRow(fmt.Sprintf("SHOW CREATE TABLE `%s`", table))
+	row := QueryRow(db, fmt.Sprintf("SHOW CREATE TABLE `%s`", table))
 	var tname, ddl string
 	err := row.Scan(&tname, &ddl)
 	checkError(err)
@@ -161,7 +174,7 @@ func dumpCreateTable(w io.Writer, db *sql.DB, table string) {
 // Get the column list for the SELECT, applying the select map
 // from config file.
 func getColumnListForSelect(db *sql.DB, table string) string {
-	rows, err := db.Query(fmt.Sprintf("SELECT * FROM `%s` LIMIT 1", table))
+	rows, err := Query(db, fmt.Sprintf("SELECT * FROM `%s` LIMIT 1", table))
 	checkError(err)
 	columns, err := rows.Columns()
 	checkError(err)
@@ -200,7 +213,7 @@ func dumpTableData(w io.Writer, db *sql.DB, table string) {
 	fmt.Fprintf(w, "\n--\n-- Data for table `%s`", table)
 
 	var count uint64
-	row := db.QueryRow(getSelectCountQueryFor(db, table))
+	row := QueryRow(db, getSelectCountQueryFor(db, table))
 	err := row.Scan(&count)
 	checkError(err)
 	fmt.Fprintf(w, " -- %d rows\n--\n\n", count)
@@ -210,7 +223,7 @@ func dumpTableData(w io.Writer, db *sql.DB, table string) {
 	data := make([]string, 0)
 
 	selectQuery := getSelectQueryFor(db, table)
-	rows, err := db.Query(selectQuery)
+	rows, err := Query(db, selectQuery)
 	checkError(err)
 	columns, err := rows.Columns()
 	checkError(err)
