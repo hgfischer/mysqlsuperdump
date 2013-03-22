@@ -26,8 +26,6 @@ var (
 	whereMap           = make(map[string]string, 0)
 	selectMap          = make(map[string]map[string]string, 0)
 	output             = flag.String("o", "", "Output path. Default is stdout")
-	verboseFlag        = flag.Bool("v", false, "Enable printing status information")
-	debugFlag          = flag.Bool("d", false, "Enable printing of debug information")
 	verbose            Bool
 	debug              Bool
 )
@@ -109,8 +107,8 @@ func parseCommandLine() {
 		flag.Usage()
 	}
 	configFile = flag.Arg(0)
-	verbose = Bool(*verboseFlag)
-	debug = Bool(*debugFlag)
+	flag.BoolVar((*bool)(&verbose), "v", false, "Enable printing status information")
+	flag.BoolVar((*bool)(&debug), "d", false, "Enable printing of debug information")
 	return
 }
 
