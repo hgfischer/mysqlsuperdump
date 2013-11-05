@@ -25,7 +25,10 @@ var (
 	extendedInsertRows int
 	whereMap           = make(map[string]string, 0)
 	selectMap          = make(map[string]map[string]string, 0)
+	filterMap          = make(map[string]string, 0)
 	output             = flag.String("o", "", "Output path. Default is stdout")
+	verboseFlag        = flag.Bool("v", false, "Enable printing status information")
+	debugFlag          = flag.Bool("d", false, "Enable printing of debug information")	
 	verbose            Bool
 	debug              Bool
 )
@@ -34,18 +37,23 @@ type Bool bool
 
 func (b Bool) Printf(s string, a ...interface{}) {
 	if b {
-		fmt.Printf(s, a...)
+		fmt.Fprintf(os.Stderr, s, a...)
 	}
 }
 
 func Query(db *sql.DB, q string) (*sql.Rows, error) {
-	debug.Printf("%s\n", q)
+	debug.Printf("Query: %s\n", q)
 	return db.Query(q)
 }
 
 func QueryRow(db *sql.DB, q string) *sql.Row {
-	debug.Printf("%s\n", q)
+	debug.Printf("QueryRow: %s\n", q)
 	return db.QueryRow(q)
+}
+
+func ExecQuery(db *sql.DB, q string) (sql.Result, error) {
+	debug.Printf("ExecQuery: %s\n", q)
+	return db.Exec(q)
 }
 
 // MAIN
@@ -56,7 +64,7 @@ func main() {
 	parseCommandLine()
 	readConfigFile()
 
-	verbose.Printf("Connecting to MySQL database at %s\n", dsn)
+	verbose.Printf("> Connecting to MySQL database at %s\n", dsn)
 	db, err := sql.Open("mysql", dsn)
 	checkError(err)
 	defer db.Close()
@@ -71,12 +79,26 @@ func main() {
 	fmt.Fprintf(w, "SET NAMES utf8;\n")
 	fmt.Fprintf(w, "SET FOREIGN_KEY_CHECKS = 0;\n")
 
-	verbose.Printf("Getting table list...\n")
+	verbose.Printf("> Getting table list...\n")
 	tables := getTables(db)
+
 	for _, table := range tables {
-		verbose.Printf("Dumping structure and data for table %s...\n", table)
-		dumpCreateTable(w, db, table)
-		dumpTableData(w, db, table)
+		if filterMap[table] != "ignore" {
+			skipData := filterMap[table] == "nodata"
+			if ! skipData {
+				verbose.Printf("> Locking table %s...\n", table)
+				lockTable(db, table)
+				flushTable(db, table)
+			}
+			verbose.Printf("> Dumping structure for table %s...\n", table)
+			dumpCreateTable(w, db, table)
+			if ! skipData {
+				verbose.Printf("> Dumping data for table %s...\n", table)
+				dumpTableData(w, db, table)
+				verbose.Printf("> Unlocking table %s...\n", table)
+				unlockTables(db)
+			}
+		}
 	}
 
 	fmt.Fprintf(w, "SET FOREIGN_KEY_CHECKS = 1;\n")
@@ -107,8 +129,8 @@ func parseCommandLine() {
 		flag.Usage()
 	}
 	configFile = flag.Arg(0)
-	flag.BoolVar((*bool)(&verbose), "v", false, "Enable printing status information")
-	flag.BoolVar((*bool)(&debug), "d", false, "Enable printing of debug information")
+	verbose = Bool(*verboseFlag)
+	debug = Bool(*debugFlag)
 	return
 }
 
@@ -140,6 +162,28 @@ func readConfigFile() {
 		whereMap[table], err = cfg.GetString("where", table)
 		checkError(err)
 	}
+
+	filters, err := cfg.GetOptions("filter")
+	checkError(err)
+	for _, table := range filters {
+		filterMap[table], err = cfg.GetString("filter", table)
+		checkError(err)
+	}
+}
+
+// Lock the table (read only)
+func lockTable(db *sql.DB, table string) (sql.Result, error) {
+	return ExecQuery(db, fmt.Sprintf("LOCK TABLES `%s` READ", table))
+}
+
+// Flush table to ensure that the all active index pages are written to disk
+func flushTable(db *sql.DB, table string) (sql.Result, error) {
+	return ExecQuery(db, fmt.Sprintf("FLUSH TABLES `%s`", table))
+}
+
+// Release the global read locks
+func unlockTables(db *sql.DB) (sql.Result, error) {
+	return ExecQuery(db, fmt.Sprintf("UNLOCK TABLES"))
 }
 
 // Get list of existing tables in database
