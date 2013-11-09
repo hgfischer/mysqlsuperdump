@@ -1,4 +1,10 @@
 
+0.3.3 / 2013-11-09 
+==================
+
+  * Add travis build file
+  * Add backtick escaping for columns
+
 0.3.2 / 2013-03-21 
 ==================
 
