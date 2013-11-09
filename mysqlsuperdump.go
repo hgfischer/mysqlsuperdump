@@ -182,6 +182,8 @@ func getColumnListForSelect(db *sql.DB, table string) string {
 		replacement, ok := selectMap[table][column]
 		if ok {
 			columns[k] = fmt.Sprintf("%s AS `%s`", replacement, column)
+		} else {
+			columns[k] = fmt.Sprintf("`%s`", column)
 		}
 	}
 	return strings.Join(columns, ", ")
