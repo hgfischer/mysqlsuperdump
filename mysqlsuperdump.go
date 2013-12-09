@@ -145,12 +145,17 @@ func readConfigFile() {
 // Get list of existing tables in database
 func getTables(db *sql.DB) (tables []string) {
 	tables = make([]string, 0)
-	rows, err := Query(db, "SHOW TABLES")
+	rows, err := Query(db, "SHOW FULL TABLES")
 	checkError(err)
 	for rows.Next() {
-		var table string
-		err = rows.Scan(&table)
-		tables = append(tables, table)
+		var tableName string
+		var tableType string
+		err = rows.Scan(&tableName, &tableType)
+		checkError(err)
+		if tableType == "BASE TABLE" {
+			tables = append(tables, tableName)
+		}
+		// TODO feature to export views as well
 	}
 	checkError(rows.Err())
 	return
