@@ -26,8 +26,6 @@ var (
 	whereMap           = make(map[string]string, 0)
 	selectMap          = make(map[string]map[string]string, 0)
 	output             = flag.String("o", "", "Output path. Default is stdout")
-	verboseFlag        = flag.Bool("v", false, "Enable printing status information")
-	debugFlag          = flag.Bool("d", false, "Enable printing of debug information")
 	verbose            Bool
 	debug              Bool
 )
@@ -109,8 +107,8 @@ func parseCommandLine() {
 		flag.Usage()
 	}
 	configFile = flag.Arg(0)
-	verbose = Bool(*verboseFlag)
-	debug = Bool(*debugFlag)
+	flag.BoolVar((*bool)(&verbose), "v", false, "Enable printing status information")
+	flag.BoolVar((*bool)(&debug), "d", false, "Enable printing of debug information")
 	return
 }
 
@@ -147,12 +145,17 @@ func readConfigFile() {
 // Get list of existing tables in database
 func getTables(db *sql.DB) (tables []string) {
 	tables = make([]string, 0)
-	rows, err := Query(db, "SHOW TABLES")
+	rows, err := Query(db, "SHOW FULL TABLES")
 	checkError(err)
 	for rows.Next() {
-		var table string
-		err = rows.Scan(&table)
-		tables = append(tables, table)
+		var tableName string
+		var tableType string
+		err = rows.Scan(&tableName, &tableType)
+		checkError(err)
+		if tableType == "BASE TABLE" {
+			tables = append(tables, tableName)
+		}
+		// TODO feature to export views as well
 	}
 	checkError(rows.Err())
 	return

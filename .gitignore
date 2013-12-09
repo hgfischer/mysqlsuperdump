@@ -1,3 +1,4 @@
-mysqlsuperdumptest.cfg
+mysqlsuperdump
+mysqlsuperdump.cfg
 test.*
 tags
