@@ -28,9 +28,10 @@ var (
 	filterMap          = make(map[string]string, 0)
 	output             = flag.String("o", "", "Output path. Default is stdout")
 	verboseFlag        = flag.Bool("v", false, "Enable printing status information")
-	debugFlag          = flag.Bool("d", false, "Enable printing of debug information")	
+	debugFlag          = flag.Bool("d", false, "Enable printing of debug information")
 	verbose            Bool
 	debug              Bool
+	useTableLock       bool
 )
 
 type Bool bool
@@ -64,6 +65,8 @@ func main() {
 	parseCommandLine()
 	readConfigFile()
 
+	verbose.Printf("> Using table locks: %t\n", useTableLock)
+
 	verbose.Printf("> Connecting to MySQL database at %s\n", dsn)
 	db, err := sql.Open("mysql", dsn)
 	checkError(err)
@@ -85,7 +88,7 @@ func main() {
 	for _, table := range tables {
 		if filterMap[table] != "ignore" {
 			skipData := filterMap[table] == "nodata"
-			if ! skipData {
+			if ! skipData && useTableLock {
 				verbose.Printf("> Locking table %s...\n", table)
 				lockTable(db, table)
 				flushTable(db, table)
@@ -95,8 +98,10 @@ func main() {
 			if ! skipData {
 				verbose.Printf("> Dumping data for table %s...\n", table)
 				dumpTableData(w, db, table)
-				verbose.Printf("> Unlocking table %s...\n", table)
-				unlockTables(db)
+				if useTableLock {
+					verbose.Printf("> Unlocking table %s...\n", table)
+					unlockTables(db)
+				}
 			}
 		}
 	}
@@ -142,6 +147,7 @@ func readConfigFile() {
 	checkError(err)
 	extendedInsertRows, err = cfg.GetInt("mysql", "extended_insert_rows")
 	checkError(err)
+	useTableLock, err = cfg.GetBool("mysql", "use_table_lock") // return false on error
 
 	selects, err := cfg.GetOptions("select")
 	checkError(err)
@@ -266,6 +272,10 @@ func dumpTableData(w io.Writer, db *sql.DB, table string) {
 	err := row.Scan(&count)
 	checkError(err)
 	fmt.Fprintf(w, " -- %d rows\n--\n\n", count)
+
+	if count == 0 {
+		return // Avoid table lock if empty
+	}
 
 	fmt.Fprintf(w, "LOCK TABLES `%s` WRITE;\n", table)
 	query := fmt.Sprintf("INSERT INTO `%s` VALUES", table)
