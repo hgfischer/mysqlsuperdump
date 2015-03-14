@@ -12,11 +12,12 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"github.com/hgfischer/goconf"
-	_ "github.com/hgfischer/mysql"
 	"io"
 	"os"
 	"strings"
+
+	conf "github.com/dlintw/goconf"
+	_ "github.com/hgfischer/mysql"
 )
 
 var (
@@ -88,14 +89,14 @@ func main() {
 	for _, table := range tables {
 		if filterMap[table] != "ignore" {
 			skipData := filterMap[table] == "nodata"
-			if ! skipData && useTableLock {
+			if !skipData && useTableLock {
 				verbose.Printf("> Locking table %s...\n", table)
 				lockTable(db, table)
 				flushTable(db, table)
 			}
 			verbose.Printf("> Dumping structure for table %s...\n", table)
 			dumpCreateTable(w, db, table)
-			if ! skipData {
+			if !skipData {
 				verbose.Printf("> Dumping data for table %s...\n", table)
 				dumpTableData(w, db, table)
 				if useTableLock {
