@@ -1,86 +1,139 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	conf "github.com/dlintw/goconf"
+	"github.com/hgfischer/go-bfmt"
 )
 
-var (
-	configFile         string
+const StdOut = "-"
+
+type config struct {
+	output             string
+	w                  io.Writer
+	verbose            bfmt.Bool
+	debug              bfmt.Bool
+	file               string
+	selectMap          map[string]map[string]string
+	whereMap           map[string]string
+	filterMap          map[string]string
 	dsn                string
 	extendedInsertRows int
-	whereMap           = make(map[string]string, 0)
-	selectMap          = make(map[string]map[string]string, 0)
-	filterMap          = make(map[string]string, 0)
-	output             = flag.String("o", "", "Output path. Default is stdout")
-	verboseFlag        = flag.Bool("v", false, "Enable printing status information")
-	debugFlag          = flag.Bool("d", false, "Enable printing of debug information")
-	verbose            Bool
-	debug              Bool
 	useTableLock       bool
-)
+	cfg                *conf.ConfigFile
+}
 
-// Print command line help and exit application
-func printUsage() {
-	fmt.Fprintf(os.Stderr,
-		"Usage: mysqlsuperdump [flags] [path to config file]\n")
+func newConfig() *config {
+	return &config{
+		whereMap:  make(map[string]string, 0),
+		selectMap: make(map[string]map[string]string, 0),
+		filterMap: make(map[string]string, 0),
+	}
+}
+
+func (c *config) usage() {
+	fmt.Fprintf(os.Stderr, "Usage: %s [flags] [config file]\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "\nFlags:\n")
 	flag.PrintDefaults()
 	os.Exit(1)
 }
 
-// Parse command line options and parameters
-func parseCommandLine() {
-	flag.Usage = printUsage
-	flag.Parse()
-	if flag.NArg() != 1 {
-		fmt.Fprintf(os.Stderr, "Error: Missing parameters\n")
-		flag.Usage()
+func (c *config) parseAll() (err error) {
+	if err = c.parseCommandLine(); err != nil {
+		return
 	}
-	configFile = flag.Arg(0)
-	verbose = Bool(*verboseFlag)
-	debug = Bool(*debugFlag)
+	if err = c.parseConfigFile(); err != nil {
+		return
+	}
 	return
 }
 
-// Read config file, inclusing wheres and selects maps
-func readConfigFile() {
-	cfg, err := conf.ReadConfigFile(configFile)
-	checkError(err)
-	dsn, err = cfg.GetString("mysql", "dsn")
-	checkError(err)
-	extendedInsertRows, err = cfg.GetInt("mysql", "extended_insert_rows")
-	checkError(err)
-	useTableLock, err = cfg.GetBool("mysql", "use_table_lock") // return false on error
+func (c *config) parseCommandLine() (err error) {
+	flag.Usage = c.usage
+	flag.StringVar(&(c.output), "o", StdOut, "Output path. Default is stdout")
+	flag.Var(&(c.verbose), "v", "Enable printing status information")
+	flag.Var(&(c.debug), "d", "Enable printing of debug information")
+	flag.Parse()
+	if flag.NArg() != 1 {
+		flag.Usage()
+		return errors.New("Missing parameters")
+	}
+	c.file = flag.Arg(0)
+	return
+}
 
-	selects, err := cfg.GetOptions("select")
-	checkError(err)
-	for _, tablecol := range selects {
-		split := strings.Split(tablecol, ".")
-		table := split[0]
-		column := split[1]
-		if selectMap[table] == nil {
-			selectMap[table] = make(map[string]string, 0)
+func (c *config) initOutput() (io.Writer, error) {
+	if c.output == StdOut {
+		return os.Stdout, nil
+	}
+	return os.Create(c.output)
+}
+
+func (c *config) parseConfigFile() (err error) {
+	if c.cfg, err = conf.ReadConfigFile(c.file); err != nil {
+		return
+	}
+	if c.dsn, err = c.cfg.GetString("mysql", "dsn"); err != nil {
+		return
+	}
+	if c.extendedInsertRows, err = c.cfg.GetInt("mysql", "extended_insert_rows"); err != nil {
+		return
+	}
+	if c.useTableLock, err = c.cfg.GetBool("mysql", "use_table_lock"); err != nil {
+		return
+	}
+	var selects []string
+	if selects, err = c.cfg.GetOptions("select"); err != nil {
+		return
+	}
+	for _, tableCol := range selects {
+		var table, column string
+		if table, column, err = c.splitTableColumn(tableCol); err != nil {
+			return
 		}
-		selectMap[table][column], err = cfg.GetString("select", tablecol)
-		checkError(err)
+		if c.selectMap[table] == nil {
+			c.selectMap[table] = make(map[string]string, 0)
+		}
+		if c.selectMap[table][column], err = c.cfg.GetString("select", tableCol); err != nil {
+			return
+		}
 	}
+	if c.loadOptions("where", c.whereMap); err != nil {
+		return
+	}
+	if c.loadOptions("filter", c.filterMap); err != nil {
+		return
+	}
+	return
+}
 
-	wheres, err := cfg.GetOptions("where")
-	checkError(err)
-	for _, table := range wheres {
-		whereMap[table], err = cfg.GetString("where", table)
-		checkError(err)
+func (c *config) loadOptions(section string, optMap map[string]string) error {
+	var opts []string
+	var err error
+	if opts, err = c.cfg.GetOptions(section); err != nil {
+		return err
 	}
+	for _, key := range opts {
+		if optMap[key], err = c.cfg.GetString(section, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	filters, err := cfg.GetOptions("filter")
-	checkError(err)
-	for _, table := range filters {
-		filterMap[table], err = cfg.GetString("filter", table)
-		checkError(err)
+func (c *config) splitTableColumn(tableCol string) (table, column string, err error) {
+	split := strings.Split(tableCol, ".")
+	if len(split) != 2 {
+		err = errors.New("Expected 'table.column' format. Got wrong one:" + tableCol)
+		return
 	}
+	table = split[0]
+	column = split[1]
+	return
 }
