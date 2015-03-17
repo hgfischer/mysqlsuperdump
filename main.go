@@ -3,33 +3,33 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"io"
-	"os"
+	"log"
 
 	_ "github.com/hgfischer/mysql"
 )
 
-// MAIN
 func main() {
-	var err error
-	var w io.Writer
+	checkError := func(err error) {
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
-	parseCommandLine()
-	readConfigFile()
+	cfg := newConfig()
+	checkError(cfg.parseAll())
 
-	verbose.Printf("> Using table locks: %t\n", useTableLock)
+	dumper := &mysqlDumper{cfg}
 
-	verbose.Printf("> Connecting to MySQL database at %s\n", dsn)
-	db, err := sql.Open("mysql", dsn)
+	verbose := cfg.verbose
+	verbose.Printf("> Using table locks: %t\n", cfg.useTableLock)
+
+	verbose.Printf("> Connecting to MySQL database at %s\n", cfg.dsn)
+	db, err := sql.Open("mysql", cfg.dsn)
 	checkError(err)
 	defer db.Close()
 
-	if *output == "" {
-		w = os.Stdout
-	} else {
-		w, err = os.Create(*output)
-		checkError(err)
-	}
+	w, err := cfg.initOutput()
+	checkError(err)
 
 	fmt.Fprintf(w, "SET NAMES utf8;\n")
 	fmt.Fprintf(w, "SET FOREIGN_KEY_CHECKS = 0;\n")
@@ -38,9 +38,9 @@ func main() {
 	tables := getTables(db)
 
 	for _, table := range tables {
-		if filterMap[table] != "ignore" {
-			skipData := filterMap[table] == "nodata"
-			if !skipData && useTableLock {
+		if cfg.filterMap[table] != "ignore" {
+			skipData := cfg.filterMap[table] == "nodata"
+			if !skipData && cfg.useTableLock {
 				verbose.Printf("> Locking table %s...\n", table)
 				lockTable(db, table)
 				flushTable(db, table)
@@ -50,7 +50,7 @@ func main() {
 			if !skipData {
 				verbose.Printf("> Dumping data for table %s...\n", table)
 				dumpTableData(w, db, table)
-				if useTableLock {
+				if cfg.useTableLock {
 					verbose.Printf("> Unlocking table %s...\n", table)
 					unlockTables(db)
 				}
