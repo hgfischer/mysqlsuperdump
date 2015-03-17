@@ -5,28 +5,26 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 
-	conf "github.com/dlintw/goconf"
-	"github.com/hgfischer/go-bfmt"
+	ini "github.com/dlintw/goconf"
 )
 
-const StdOut = "-"
+const UseStdout = "-"
 
 type config struct {
-	output             string
-	w                  io.Writer
-	verbose            bfmt.Bool
-	debug              bfmt.Bool
-	file               string
-	selectMap          map[string]map[string]string
-	whereMap           map[string]string
-	filterMap          map[string]string
-	dsn                string
-	extendedInsertRows int
-	useTableLock       bool
-	cfg                *conf.ConfigFile
+	dsn          string
+	output       string
+	file         string
+	verbose      bool
+	selectMap    map[string]map[string]string
+	whereMap     map[string]string
+	filterMap    map[string]string
+	useTableLock bool
+	cfg          *ini.ConfigFile
 }
 
 func newConfig() *config {
@@ -54,11 +52,18 @@ func (c *config) parseAll() (err error) {
 	return
 }
 
+func (c *config) getVerboseLogger() *log.Logger {
+	w := ioutil.Discard
+	if c.verbose {
+		w = os.Stdout
+	}
+	return log.New(w, "mysqlsuperdump: ", log.LstdFlags)
+}
+
 func (c *config) parseCommandLine() (err error) {
 	flag.Usage = c.usage
-	flag.StringVar(&(c.output), "o", StdOut, "Output path. Default is stdout")
-	flag.Var(&(c.verbose), "v", "Enable printing status information")
-	flag.Var(&(c.debug), "d", "Enable printing of debug information")
+	flag.StringVar(&(c.output), "o", UseStdout, "Output path. Default is stdout")
+	flag.BoolVar(&(c.verbose), "v", false, "Enable printing status information")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		flag.Usage()
@@ -68,21 +73,11 @@ func (c *config) parseCommandLine() (err error) {
 	return
 }
 
-func (c *config) initOutput() (io.Writer, error) {
-	if c.output == StdOut {
-		return os.Stdout, nil
-	}
-	return os.Create(c.output)
-}
-
 func (c *config) parseConfigFile() (err error) {
-	if c.cfg, err = conf.ReadConfigFile(c.file); err != nil {
+	if c.cfg, err = ini.ReadConfigFile(c.file); err != nil {
 		return
 	}
 	if c.dsn, err = c.cfg.GetString("mysql", "dsn"); err != nil {
-		return
-	}
-	if c.extendedInsertRows, err = c.cfg.GetInt("mysql", "extended_insert_rows"); err != nil {
 		return
 	}
 	if c.useTableLock, err = c.cfg.GetBool("mysql", "use_table_lock"); err != nil {
@@ -136,4 +131,11 @@ func (c *config) splitTableColumn(tableCol string) (table, column string, err er
 	table = split[0]
 	column = split[1]
 	return
+}
+
+func (c *config) initOutput() (io.Writer, error) {
+	if c.output == UseStdout {
+		return os.Stdout, nil
+	}
+	return os.Create(c.output)
 }

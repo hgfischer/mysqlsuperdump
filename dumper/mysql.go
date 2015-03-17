@@ -4,28 +4,34 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 )
 
 type MySQL struct {
-	DB        *sql.DB
-	SelectMap map[string]map[string]string
-	WhereMap  map[string]string
-	FilterMap map[string]string
+	DB           *sql.DB
+	SelectMap    map[string]map[string]string
+	WhereMap     map[string]string
+	FilterMap    map[string]string
+	UseTableLock bool
+	Log          *log.Logger
 }
 
 // Lock the table (read only)
 func (d *MySQL) LockTableReading(table string) (sql.Result, error) {
+	d.Log.Println("Locking table", table, "for reading")
 	return d.DB.Exec(fmt.Sprintf("LOCK TABLES `%s` READ", table))
 }
 
 // Flush table to ensure that the all active index pages are written to disk
 func (d *MySQL) FlushTable(table string) (sql.Result, error) {
+	d.Log.Println("Flushing table", table)
 	return d.DB.Exec(fmt.Sprintf("FLUSH TABLES `%s`", table))
 }
 
 // Release the global read locks
 func (d *MySQL) UnlockTables() (sql.Result, error) {
+	d.Log.Println("Unlocking tables")
 	return d.DB.Exec(fmt.Sprintf("UNLOCK TABLES"))
 }
 
@@ -50,6 +56,7 @@ func (d *MySQL) GetTables() (tables []string, err error) {
 
 // Dump the script to create the table
 func (d *MySQL) DumpCreateTable(w io.Writer, table string) error {
+	d.Log.Printf("Dumping structure for table", table)
 	fmt.Fprintf(w, "\n--\n-- Structure for table `%s`\n--\n\n", table)
 	fmt.Fprintf(w, "DROP TABLE IF EXISTS `%s`;\n", table)
 	row := d.DB.QueryRow(fmt.Sprintf("SHOW CREATE TABLE `%s`", table))
@@ -143,6 +150,7 @@ func (d *MySQL) selectAllDataFor(table string) (rows *sql.Rows, columns []string
 
 // Get the table data
 func (d *MySQL) DumpTableData(w io.Writer, table string) (err error) {
+	d.Log.Printf("Dumping data for table", table)
 	rows, columns, err := d.selectAllDataFor(table)
 	if err != nil {
 		return
@@ -180,5 +188,40 @@ func (d *MySQL) DumpTableData(w io.Writer, table string) (err error) {
 		fmt.Fprintf(w, "%s\n%s;\n", query, strings.Join(data, ",\n"))
 	}
 
+	return
+}
+
+func (d *MySQL) Dump(w io.Writer) (err error) {
+	fmt.Fprintf(w, "SET NAMES utf8;\n")
+	fmt.Fprintf(w, "SET FOREIGN_KEY_CHECKS = 0;\n")
+
+	d.Log.Println("Getting table list...")
+	tables, err := d.GetTables()
+	if err != nil {
+		return
+	}
+
+	for _, table := range tables {
+		if d.FilterMap[table] != "ignore" {
+			skipData := d.FilterMap[table] == "nodata"
+			if !skipData && d.UseTableLock {
+				d.LockTableReading(table)
+				d.FlushTable(table)
+			}
+			d.DumpCreateTable(w, table)
+			if !skipData {
+				d.DumpTableHeader(w, table)
+				d.DumpTableLockWrite(w, table)
+				d.DumpTableData(w, table)
+				d.DumpUnlockTables(w)
+				if d.UseTableLock {
+					d.Log.Printf("Unlocking table", table)
+					d.UnlockTables()
+				}
+			}
+		}
+	}
+
+	fmt.Fprintf(w, "SET FOREIGN_KEY_CHECKS = 1;\n")
 	return
 }
