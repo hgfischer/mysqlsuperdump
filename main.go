@@ -21,6 +21,7 @@ func main() {
 
 	verbosely.Println("Connecting to MySQL database at", cfg.dsn)
 	db, err := sql.Open("mysql", cfg.dsn)
+	db.SetMaxOpenConns(cfg.maxOpenConns)
 	checkError(err)
 	defer db.Close()
 

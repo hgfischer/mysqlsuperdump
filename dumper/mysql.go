@@ -42,6 +42,7 @@ func (d *MySQL) GetTables() (tables []string, err error) {
 	if rows, err = d.DB.Query("SHOW FULL TABLES"); err != nil {
 		return
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var tableName, tableType string
 		if err = rows.Scan(&tableName, &tableType); err != nil {
@@ -74,6 +75,7 @@ func (d *MySQL) GetColumnsForSelect(table string) (columns []string, err error) 
 	if rows, err = d.DB.Query(fmt.Sprintf("SELECT * FROM `%s` LIMIT 1", table)); err != nil {
 		return
 	}
+	defer rows.Close()
 	if columns, err = rows.Columns(); err != nil {
 		return
 	}
@@ -155,6 +157,7 @@ func (d *MySQL) DumpTableData(w io.Writer, table string) (err error) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 
 	values := make([]*sql.RawBytes, len(columns))
 	scanArgs := make([]interface{}, len(values))
@@ -210,12 +213,18 @@ func (d *MySQL) Dump(w io.Writer) (err error) {
 			}
 			d.DumpCreateTable(w, table)
 			if !skipData {
-				d.DumpTableHeader(w, table)
-				d.DumpTableLockWrite(w, table)
-				d.DumpTableData(w, table)
-				d.DumpUnlockTables(w)
-				if d.UseTableLock {
-					d.UnlockTables()
+				cnt, err := d.DumpTableHeader(w, table)
+				if err != nil {
+					return err
+				}
+				if cnt > 0 {
+					d.DumpTableLockWrite(w, table)
+					d.DumpTableData(w, table)
+					fmt.Fprintln(w)
+					d.DumpUnlockTables(w)
+					if d.UseTableLock {
+						d.UnlockTables()
+					}
 				}
 			}
 		}

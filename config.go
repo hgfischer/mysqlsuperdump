@@ -16,6 +16,7 @@ const UseStdout = "-"
 
 type config struct {
 	dsn          string
+	maxOpenConns int
 	output       string
 	file         string
 	verbose      bool
@@ -56,7 +57,7 @@ func (c *config) getVerboseLogger() *log.Logger {
 	if c.verbose {
 		w = os.Stdout
 	}
-	return log.New(w, "mysqlsuperdump: ", log.LstdFlags)
+	return log.New(w, "mysqlsuperdump: ", log.LstdFlags|log.Lshortfile|log.Lmicroseconds)
 }
 
 func (c *config) parseCommandLine() (err error) {
@@ -80,6 +81,9 @@ func (c *config) parseConfigFile() (err error) {
 		return
 	}
 	if c.useTableLock, err = c.cfg.GetBool("mysql", "use_table_lock"); err != nil {
+		return
+	}
+	if c.maxOpenConns, err = c.cfg.GetInt("mysql", "max_open_conns"); err != nil {
 		return
 	}
 	var selects []string
