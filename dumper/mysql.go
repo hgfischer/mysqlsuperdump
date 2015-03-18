@@ -56,7 +56,7 @@ func (d *MySQL) GetTables() (tables []string, err error) {
 
 // Dump the script to create the table
 func (d *MySQL) DumpCreateTable(w io.Writer, table string) error {
-	d.Log.Printf("Dumping structure for table", table)
+	d.Log.Println("Dumping structure for table", table)
 	fmt.Fprintf(w, "\n--\n-- Structure for table `%s`\n--\n\n", table)
 	fmt.Fprintf(w, "DROP TABLE IF EXISTS `%s`;\n", table)
 	row := d.DB.QueryRow(fmt.Sprintf("SHOW CREATE TABLE `%s`", table))
@@ -150,7 +150,7 @@ func (d *MySQL) selectAllDataFor(table string) (rows *sql.Rows, columns []string
 
 // Get the table data
 func (d *MySQL) DumpTableData(w io.Writer, table string) (err error) {
-	d.Log.Printf("Dumping data for table", table)
+	d.Log.Println("Dumping data for table", table)
 	rows, columns, err := d.selectAllDataFor(table)
 	if err != nil {
 		return
@@ -215,7 +215,7 @@ func (d *MySQL) Dump(w io.Writer) (err error) {
 				d.DumpTableData(w, table)
 				d.DumpUnlockTables(w)
 				if d.UseTableLock {
-					d.Log.Printf("Unlocking table", table)
+					d.Log.Println("Unlocking table", table)
 					d.UnlockTables()
 				}
 			}
