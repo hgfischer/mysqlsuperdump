@@ -215,7 +215,6 @@ func (d *MySQL) Dump(w io.Writer) (err error) {
 				d.DumpTableData(w, table)
 				d.DumpUnlockTables(w)
 				if d.UseTableLock {
-					d.Log.Println("Unlocking table", table)
 					d.UnlockTables()
 				}
 			}

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -133,7 +132,7 @@ func (c *config) splitTableColumn(tableCol string) (table, column string, err er
 	return
 }
 
-func (c *config) initOutput() (io.Writer, error) {
+func (c *config) initOutput() (*os.File, error) {
 	if c.output == UseStdout {
 		return os.Stdout, nil
 	}

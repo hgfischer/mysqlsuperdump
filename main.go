@@ -35,6 +35,7 @@ func main() {
 
 	w, err := cfg.initOutput()
 	checkError(err)
+	defer w.Close()
 
 	verbosely.Println("Starting dump")
 	checkError(dumpr.Dump(w))
