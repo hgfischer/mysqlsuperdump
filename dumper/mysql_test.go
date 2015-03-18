@@ -2,6 +2,8 @@ package dumper_test
 
 import (
 	"bytes"
+	"io/ioutil"
+	"log"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -9,10 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var logger = log.New(ioutil.Discard, "", 0)
+
 func TestMySQLLockTableRead(t *testing.T) {
 	db, err := sqlmock.New()
 	assert.Nil(t, err)
-	dumper := &dumper.MySQL{DB: db}
+	dumper := &dumper.MySQL{DB: db, Log: logger}
 	sqlmock.ExpectExec("LOCK TABLES `table` READ").WillReturnResult(sqlmock.NewResult(0, 1))
 	_, err = dumper.LockTableReading("table")
 	assert.Nil(t, err)
@@ -22,7 +26,7 @@ func TestMySQLLockTableRead(t *testing.T) {
 func TestMySQLFlushTable(t *testing.T) {
 	db, err := sqlmock.New()
 	assert.Nil(t, err)
-	dumper := &dumper.MySQL{DB: db}
+	dumper := &dumper.MySQL{DB: db, Log: logger}
 	sqlmock.ExpectExec("FLUSH TABLES `table`").WillReturnResult(sqlmock.NewResult(0, 1))
 	_, err = dumper.FlushTable("table")
 	assert.Nil(t, err)
@@ -32,7 +36,7 @@ func TestMySQLFlushTable(t *testing.T) {
 func TestMySQLUnlockTables(t *testing.T) {
 	db, err := sqlmock.New()
 	assert.Nil(t, err)
-	dumper := &dumper.MySQL{DB: db}
+	dumper := &dumper.MySQL{DB: db, Log: logger}
 	sqlmock.ExpectExec("UNLOCK TABLES").WillReturnResult(sqlmock.NewResult(0, 1))
 	_, err = dumper.UnlockTables()
 	assert.Nil(t, err)
@@ -42,7 +46,7 @@ func TestMySQLUnlockTables(t *testing.T) {
 func TestMySQLGetTables(t *testing.T) {
 	db, err := sqlmock.New()
 	assert.Nil(t, err)
-	dumper := &dumper.MySQL{DB: db}
+	dumper := &dumper.MySQL{DB: db, Log: logger}
 	sqlmock.ExpectQuery("SHOW FULL TABLES").WillReturnRows(
 		sqlmock.NewRows([]string{"Tables_in_database", "Table_type"}).
 			AddRow("table1", "BASE TABLE").
@@ -63,7 +67,7 @@ func TestMySQLDumpCreateTable(t *testing.T) {
 		") ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8"
 	db, err := sqlmock.New()
 	assert.Nil(t, err)
-	dumper := &dumper.MySQL{DB: db}
+	dumper := &dumper.MySQL{DB: db, Log: logger}
 	sqlmock.ExpectQuery("SHOW CREATE TABLE `table`").WillReturnRows(
 		sqlmock.NewRows([]string{"Table", "Create Table"}).
 			AddRow("table", ddl),
@@ -80,7 +84,7 @@ func TestMySQLGetColumnsForSelect(t *testing.T) {
 	db, err := sqlmock.New()
 	assert.Nil(t, err)
 	selectMap := map[string]map[string]string{"table": {"col2": "NOW()"}}
-	dumper := &dumper.MySQL{DB: db, SelectMap: selectMap}
+	dumper := &dumper.MySQL{DB: db, SelectMap: selectMap, Log: logger}
 	sqlmock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnRows(
 		sqlmock.NewRows([]string{"col1", "col2", "col3"}).AddRow("a", "b", "c"))
 	columns, err := dumper.GetColumnsForSelect("table")
@@ -94,7 +98,7 @@ func TestMySQLGetSelectQueryFor(t *testing.T) {
 	assert.Nil(t, err)
 	selectMap := map[string]map[string]string{"table": {"c2": "NOW()"}}
 	whereMap := map[string]string{"table": "c1 > 0"}
-	dumper := &dumper.MySQL{DB: db, SelectMap: selectMap, WhereMap: whereMap}
+	dumper := &dumper.MySQL{DB: db, SelectMap: selectMap, WhereMap: whereMap, Log: logger}
 	sqlmock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnRows(
 		sqlmock.NewRows([]string{"c1", "c2"}).AddRow("a", "b"))
 	query, err := dumper.GetSelectQueryFor("table")
@@ -107,7 +111,7 @@ func TestMySQLGetRowCount(t *testing.T) {
 	whereMap := map[string]string{"table": "c1 > 0"}
 	db, err := sqlmock.New()
 	assert.Nil(t, err)
-	dumper := &dumper.MySQL{DB: db, WhereMap: whereMap}
+	dumper := &dumper.MySQL{DB: db, WhereMap: whereMap, Log: logger}
 	sqlmock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table` WHERE c1 > 0").WillReturnRows(
 		sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1234))
 	count, err := dumper.GetRowCount("table")
@@ -119,7 +123,7 @@ func TestMySQLGetRowCount(t *testing.T) {
 func TestMySQLDumpTableHeader(t *testing.T) {
 	db, err := sqlmock.New()
 	assert.Nil(t, err)
-	dumper := &dumper.MySQL{DB: db}
+	dumper := &dumper.MySQL{DB: db, Log: logger}
 	sqlmock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table`").WillReturnRows(
 		sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1234))
 	buffer := bytes.NewBuffer(make([]byte, 0))
@@ -133,14 +137,14 @@ func TestMySQLDumpTableHeader(t *testing.T) {
 
 func TestMySQLDumpTableLockWrite(t *testing.T) {
 	buffer := bytes.NewBuffer(make([]byte, 0))
-	dumper := &dumper.MySQL{}
+	dumper := &dumper.MySQL{Log: logger}
 	dumper.DumpTableLockWrite(buffer, "table")
 	assert.Contains(t, buffer.String(), "LOCK TABLES `table` WRITE;")
 }
 
 func TestMySQLDumpUnlockTables(t *testing.T) {
 	buffer := bytes.NewBuffer(make([]byte, 0))
-	dumper := &dumper.MySQL{}
+	dumper := &dumper.MySQL{Log: logger}
 	dumper.DumpUnlockTables(buffer)
 	assert.Contains(t, buffer.String(), "UNLOCK TABLES;")
 }
