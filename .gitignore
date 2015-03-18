@@ -3,3 +3,5 @@ mysqlsuperdump.cfg
 test.*
 tags
 *.sql
+*.swp
+*.out
