@@ -2,3 +2,4 @@ mysqlsuperdump
 mysqlsuperdump.cfg
 test.*
 tags
+*.sql
