@@ -51,7 +51,7 @@ test: $(SYMLINK) check_gopath
 
 
 $(COVER): check_gopath check_gobin
-	@go get golang.org/x/tools/cmd/cover || exit 0
+	@go get -v -u golang.org/x/tools/cmd/cover || exit 0
 
 .PHONY: cover
 cover: check_gopath $(COVER)
