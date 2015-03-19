@@ -1,5 +1,8 @@
 # MySQL Super Dump
 
+
+## History
+
 > Once uppon a time there was a development team that liked to use dumps from the
 production database in their development environments to have the same content
 and behavior of the production system in their machines.
@@ -13,18 +16,28 @@ developers would use.
 > However this script was taking more time to run, day by day, and each day it was
 using more resources from the server to run, until it exploded.
 
-This is a fictionary tale based on a true story, but it can happen with lots of 
-development teams over the world.
 
-Based on this I've decided to make a program to solve this problem. The first version 
-was made in Python 2.7 in a few hours, but I got trapped in text encoding problems of 
-Python and MySQLdb library. So I've decided to rewrite it using Go (golang). 
+## Features
+
+* Filter dumped rows by a native WHERE clause (`[where]` config's section)
+* Replace dumped data with native SELECT functions (`[select]` config's section)
+* Disable data output of specific tables (`[filter]` config's section: `nodata`)
+* Ignore entire tables (`[filter]` config's section: `ignore`)
+
 
 ## Usage
 
-* Clone the repository.
-* Download Go 1.0.3 or newer from http://golang.org, and install it. Remember to set your $PATH env var.
-* Build mysqlduperdump running "sudo go get && sudo go install" inside the project directory.
-* Create a mysqlsuperdump.cfg config file and place where you like it. Use the included.
-  mysqlsuperdump.cfg as an example of setup.
+* Install the latest Go compiler installed (check instructions at: http://golang.org)
+* Check you environment with `go env`:
+ * The repository will be clones at `$GOPATH/src/github.com/hgfischer/mysqlsuperdump`
+ * The binary will be installed in `$GOBIN`
+* Then run `go get` to download, build and install `mysqlsuperdump`: `go get github.com/hgfischer/mysqlsuperdump`
+* Create a config file based on `example.cfg` and place where you like it.
 * Run mysqlsuperdump -h to see command line options and _voilá_.
+
+
+## TO DO
+
+* Extend MySQL support, with other objects like views, triggers, etc
+* Refactor dumper interface to support another SQL databases
+* Add support for PostgreSQL
