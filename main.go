@@ -25,14 +25,11 @@ func main() {
 	checkError(err)
 	defer db.Close()
 
-	dumpr := &dumper.MySQL{
-		DB:           db,
-		SelectMap:    cfg.selectMap,
-		WhereMap:     cfg.whereMap,
-		FilterMap:    cfg.filterMap,
-		UseTableLock: cfg.useTableLock,
-		Log:          verbosely,
-	}
+	dumpr := dumper.NewMySQLDumper(db, verbosely)
+	dumpr.SelectMap = cfg.selectMap
+	dumpr.WhereMap = cfg.whereMap
+	dumpr.FilterMap = cfg.filterMap
+	dumpr.UseTableLock = cfg.useTableLock
 
 	w, err := cfg.initOutput()
 	checkError(err)
