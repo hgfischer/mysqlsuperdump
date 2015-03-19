@@ -15,16 +15,17 @@ import (
 const UseStdout = "-"
 
 type config struct {
-	dsn          string
-	maxOpenConns int
-	output       string
-	file         string
-	verbose      bool
-	selectMap    map[string]map[string]string
-	whereMap     map[string]string
-	filterMap    map[string]string
-	useTableLock bool
-	cfg          *ini.ConfigFile
+	dsn             string
+	maxOpenConns    int
+	output          string
+	file            string
+	verbose         bool
+	selectMap       map[string]map[string]string
+	whereMap        map[string]string
+	filterMap       map[string]string
+	useTableLock    bool
+	extendedInsRows int
+	cfg             *ini.ConfigFile
 }
 
 func newConfig() *config {
@@ -80,11 +81,14 @@ func (c *config) parseConfigFile() (err error) {
 	if c.dsn, err = c.cfg.GetString("mysql", "dsn"); err != nil {
 		return
 	}
+	if c.extendedInsRows, err = c.cfg.GetInt("mysql", "extended_insert_rows"); err != nil {
+		c.extendedInsRows = 100
+	}
 	if c.useTableLock, err = c.cfg.GetBool("mysql", "use_table_lock"); err != nil {
-		return
+		c.useTableLock = true
 	}
 	if c.maxOpenConns, err = c.cfg.GetInt("mysql", "max_open_conns"); err != nil {
-		return
+		c.maxOpenConns = 50
 	}
 	var selects []string
 	if selects, err = c.cfg.GetOptions("select"); err != nil {

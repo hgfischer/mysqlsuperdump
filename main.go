@@ -30,6 +30,7 @@ func main() {
 	dumpr.WhereMap = cfg.whereMap
 	dumpr.FilterMap = cfg.filterMap
 	dumpr.UseTableLock = cfg.useTableLock
+	dumpr.ExtendedInsertRows = cfg.extendedInsRows
 
 	w, err := cfg.initOutput()
 	checkError(err)
