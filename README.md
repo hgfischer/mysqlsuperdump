@@ -1,5 +1,10 @@
 # MySQL Super Dump
 
+*MySQL Super Dump* is a tool to efficiently create filtered and manipulated database dumps. It relies in the power
+of the SQL native language to do this, using WHERE clauses and complete SELECT statements with aliases to do this.
+
+Currently it does not support every kind of MySQL structure (views, triggers, etc), but it supports the most basic 
+stuff: schemas, tables and rows.
 
 ## History
 
@@ -41,3 +46,8 @@ using more resources from the server to run, until it exploded.
 * Extend MySQL support, with other objects like views, triggers, etc
 * Refactor dumper interface to support another SQL databases
 * Add support for PostgreSQL
+
+
+## License
+
+Please, check the LICENSE file.
