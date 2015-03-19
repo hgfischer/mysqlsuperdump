@@ -1,3 +1,5 @@
+[![Build Status](https://drone.io/github.com/hgfischer/mysqlsuperdump/status.png)](https://drone.io/github.com/hgfischer/mysqlsuperdump/latest)
+
 # MySQL Super Dump
 
 *MySQL Super Dump* is a tool to efficiently create filtered and manipulated database dumps. It relies in the power
