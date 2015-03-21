@@ -71,17 +71,16 @@ cover: check_gopath $(COVER) $(GOCOV) $(GOCOVHTML)
 
 
 $(GOCOV): check_gopath check_gobin
-	@go get -v -u github.com/axw/gocov/gocov || exit 0
+	@go get -v github.com/axw/gocov/gocov || exit 0
 
 
 $(GOCOVHTML): check_gopath check_gobin
-	@go get -v -u gopkg.in/matm/v1/gocov-html || exit 0
+	@go get -v gopkg.in/matm/v1/gocov-html || exit 0
 
 
 $(LINT): check_gopath check_gobin
-	@go get github.com/golang/lint/golint
+	@go get -v github.com/golang/lint/golint
 
-.PHONY: lint
 lint: $(LINT)
 	@for src in $(SOURCES); do golint $$src || exit 1; done
 

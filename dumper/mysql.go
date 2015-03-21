@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// ExtendedInsertDefaultRowCount: Default rows that will be dumped by each INSERT statement
 const (
 	ExtendedInsertDefaultRowCount = 100
 )
@@ -23,7 +24,8 @@ type mySQL struct {
 	ExtendedInsertRows int
 }
 
-func NewMySQLDumper(db *sql.DB, logger *log.Logger) *mySQL {
+// NewMySQLDumper is the constructor
+func NewMySQLDumper(db *sql.DB, logger *log.Logger) *MySQL {
 	if logger == nil {
 		logger = log.New(ioutil.Discard, "", 0)
 	}
@@ -179,12 +181,12 @@ func (d *mySQL) DumpTableData(w io.Writer, table string) (err error) {
 	}
 
 	query := fmt.Sprintf("INSERT INTO `%s` VALUES", table)
-	data := make([]string, 0)
+	var data []string
 	for rows.Next() {
 		if err = rows.Scan(scanArgs...); err != nil {
 			return err
 		}
-		vals := make([]string, 0)
+		var vals []string
 		for _, col := range values {
 			val := "NULL"
 			if col != nil {
