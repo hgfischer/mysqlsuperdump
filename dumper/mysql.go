@@ -25,7 +25,7 @@ type mySQL struct {
 }
 
 // NewMySQLDumper is the constructor
-func NewMySQLDumper(db *sql.DB, logger *log.Logger) *MySQL {
+func NewMySQLDumper(db *sql.DB, logger *log.Logger) *mySQL {
 	if logger == nil {
 		logger = log.New(ioutil.Discard, "", 0)
 	}
