@@ -95,7 +95,7 @@ func (d *mySQL) GetColumnsForSelect(table string) (columns []string, err error) 
 		return
 	}
 	for k, column := range columns {
-		replacement, ok := d.SelectMap[table][column]
+		replacement, ok := d.SelectMap[strings.ToLower(table)][column]
 		if ok {
 			columns[k] = fmt.Sprintf("%s AS `%s`", replacement, column)
 		} else {
@@ -112,7 +112,7 @@ func (d *mySQL) GetSelectQueryFor(table string) (query string, err error) {
 		return "", err
 	}
 	query = fmt.Sprintf("SELECT %s FROM `%s`", strings.Join(cols, ", "), table)
-	if where, ok := d.WhereMap[table]; ok {
+	if where, ok := d.WhereMap[strings.ToLower(table)]; ok {
 		query = fmt.Sprintf("%s WHERE %s", query, where)
 	}
 	return
@@ -120,8 +120,9 @@ func (d *mySQL) GetSelectQueryFor(table string) (query string, err error) {
 
 // Get the number of rows the select will return
 func (d *mySQL) GetRowCount(table string) (count uint64, err error) {
+
 	query := fmt.Sprintf("SELECT COUNT(*) FROM `%s`", table)
-	if where, ok := d.WhereMap[table]; ok {
+	if where, ok := d.WhereMap[strings.ToLower(table)]; ok {
 		query = fmt.Sprintf("%s WHERE %s", query, where)
 	}
 	row := d.DB.QueryRow(query)
@@ -220,8 +221,9 @@ func (d *mySQL) Dump(w io.Writer) (err error) {
 	}
 
 	for _, table := range tables {
-		if d.FilterMap[table] != "ignore" {
-			skipData := d.FilterMap[table] == "nodata"
+		
+		if d.FilterMap[strings.ToLower(table)] != "ignore" {
+			skipData := d.FilterMap[strings.ToLower(table)] == "nodata"
 			if !skipData && d.UseTableLock {
 				d.LockTableReading(table)
 				d.FlushTable(table)
