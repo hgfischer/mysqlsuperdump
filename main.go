@@ -5,7 +5,7 @@ import (
 	"log"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/hgfischer/mysqlsuperdump/dumper"
+	"github.com/dadacafe/mysqlsuperdump/dumper"
 )
 
 func main() {
