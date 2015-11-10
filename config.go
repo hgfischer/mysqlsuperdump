@@ -25,6 +25,7 @@ type config struct {
 	whereMap        map[string]string
 	filterMap       map[string]string
 	useTableLock    bool
+	ignoreMode      bool
 	extendedInsRows int
 	cfg             *ini.ConfigFile
 }
@@ -87,6 +88,9 @@ func (c *config) parseConfigFile() (err error) {
 	}
 	if c.useTableLock, err = c.cfg.GetBool("mysql", "use_table_lock"); err != nil {
 		c.useTableLock = true
+	}
+	if c.ignoreMode, err = c.cfg.GetBool("mysql", "ignore_mode"); err != nil {
+		c.ignoreMode = true
 	}
 	if c.maxOpenConns, err = c.cfg.GetInt("mysql", "max_open_conns"); err != nil {
 		c.maxOpenConns = 50
