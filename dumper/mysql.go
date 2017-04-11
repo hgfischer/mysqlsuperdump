@@ -95,7 +95,7 @@ func (d *mySQL) GetColumnsForSelect(table string) (columns []string, err error) 
 		return
 	}
 	for k, column := range columns {
-		replacement, ok := d.SelectMap[strings.ToLower(table)][column]
+		replacement, ok := d.SelectMap[strings.ToLower(table)][strings.ToLower(column)]
 		if ok {
 			columns[k] = fmt.Sprintf("%s AS `%s`", replacement, column)
 		} else {
