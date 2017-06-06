@@ -12,7 +12,7 @@ import (
 	ini "github.com/dlintw/goconf"
 )
 
-// If the flag `output` have this value, the dump will be written to the Stdout
+// UseStdout means that if the flag `output` have this value, the dump will be written to the Stdout
 const UseStdout = "-"
 
 type config struct {
