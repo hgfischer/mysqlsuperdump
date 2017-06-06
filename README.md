@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/hgfischer/mysqlsuperdump.svg?branch=master)](https://travis-ci.org/hgfischer/mysqlsuperdump)
 
-*MySQL Super Dump* is a tool to efficiently create filtered and manipulated database dumps. It relies in the power
+*MySQL Super Dump* is a tool to efficiently create *filtered* and *manipulated* database dumps. It relies in the power
 of the SQL native language to do this, using WHERE clauses and complete SELECT statements with aliases to do this.
 
 Currently it does not support every kind of MySQL structure (views, triggers, etc), but it supports the most basic 
@@ -42,6 +42,55 @@ using more resources from the server to run, until it exploded.
 * Create a config file based on `example.cfg` and place where you like it.
 * Run mysqlsuperdump -h to see command line options and _voilá_.
 
+
+## Configuration Example
+
+```
+
+[mysql]
+# See https://github.com/Go-SQL-Driver/MySQL for details on this
+dsn = username:password@protocol(address)/dbname?charset=utf8
+extended_insert_rows = 1000
+#use_table_lock = true
+max_open_conns = 50
+
+# Use this to restrict exported data. There are optional
+[where]
+sales_order           = created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+customer_upload       = created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+newsletter_subscriber = created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+
+# Use this to override value returned from tables. These are optional
+[select]
+system_user.salt = 'reset salt of all system users'
+system_user.password = 'reset password of all system users'
+
+customer.first_name = CONCAT('Charlie ', id)
+customer.last_name = 'Last'
+customer.salt = 'reset salt of all customers'
+customer.password = 'reset password of all customers'
+customer.username = CONCAT(id, '@fiction.tld')
+customer.username_canonical = CONCAT(id, '@fiction.tld')
+customer.email = CONCAT(id, '@fiction.tld')
+customer.email_canonical = CONCAT(id, '@fiction.tld')
+
+newsletter_subscriber.email = CONCAT(id, '@fiction.tld')
+
+customer_address.recipient_name = CONCAT('Recipient Name ', id)
+customer_address.company = CONCAT('Company Name ', id)
+customer_address.phone = CONCAT('(', id, ') 1234-1234')
+
+sales_order_address.recipient_name = CONCAT('Recipient Name ', id)
+sales_order_address.company = CONCAT('Company Name ', id)
+sales_order_address.phone = CONCAT('(', id, ') 1234-1234')
+
+system_dump_version.created_at = NOW()
+
+# Use this to filter entire table (ignore) or data only (nodata)
+[filter]
+customer_stats = nodata
+customer_private = ignore
+```
 
 ## TO DO
 
