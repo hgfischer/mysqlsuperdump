@@ -1,6 +1,7 @@
 # MySQL Super Dump
 
 [![Build Status](https://travis-ci.org/hgfischer/mysqlsuperdump.svg?branch=master)](https://travis-ci.org/hgfischer/mysqlsuperdump)
+[![Go Report Card](https://goreportcard.com/badge/hgfischer/mysqlsuperdump)](https://goreportcard.com/report/hgfischer/mysqlsuperdump)
 
 *MySQL Super Dump* is a tool to efficiently create *filtered* and *manipulated* database dumps. It relies in the power
 of the SQL native language to do this, using WHERE clauses and complete SELECT statements with aliases to do this.
