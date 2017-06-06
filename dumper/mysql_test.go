@@ -11,43 +11,40 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func getDB(t *testing.T) *sql.DB {
-	db, err := sqlmock.New()
+func getDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
+	db, mock, err := sqlmock.New()
 	assert.Nil(t, err)
-	return db
+	return db, mock
 }
 
 func TestMySQLLockTableRead(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
-	sqlmock.ExpectExec("LOCK TABLES `table` READ").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("LOCK TABLES `table` READ").WillReturnResult(sqlmock.NewResult(0, 1))
 	_, err := dumper.LockTableReading("table")
 	assert.Nil(t, err)
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLFlushTable(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
-	sqlmock.ExpectExec("FLUSH TABLES `table`").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("FLUSH TABLES `table`").WillReturnResult(sqlmock.NewResult(0, 1))
 	_, err := dumper.FlushTable("table")
 	assert.Nil(t, err)
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLUnlockTables(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
-	sqlmock.ExpectExec("UNLOCK TABLES").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UNLOCK TABLES").WillReturnResult(sqlmock.NewResult(0, 1))
 	_, err := dumper.UnlockTables()
 	assert.Nil(t, err)
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLGetTables(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
-	sqlmock.ExpectQuery("SHOW FULL TABLES").WillReturnRows(
+	mock.ExpectQuery("SHOW FULL TABLES").WillReturnRows(
 		sqlmock.NewRows([]string{"Tables_in_database", "Table_type"}).
 			AddRow("table1", "BASE TABLE").
 			AddRow("table2", "BASE TABLE"),
@@ -55,29 +52,26 @@ func TestMySQLGetTables(t *testing.T) {
 	tables, err := dumper.GetTables()
 	assert.Equal(t, []string{"table1", "table2"}, tables)
 	assert.Nil(t, err)
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLGetTablesHandlingErrorWhenListingTables(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
 	expectedErr := errors.New("broken")
-	sqlmock.ExpectQuery("SHOW FULL TABLES").WillReturnError(expectedErr)
+	mock.ExpectQuery("SHOW FULL TABLES").WillReturnError(expectedErr)
 	tables, err := dumper.GetTables()
 	assert.Equal(t, []string{}, tables)
 	assert.Equal(t, expectedErr, err)
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLGetTablesHandlingErrorWhenScanningRow(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
-	sqlmock.ExpectQuery("SHOW FULL TABLES").WillReturnRows(
+	mock.ExpectQuery("SHOW FULL TABLES").WillReturnRows(
 		sqlmock.NewRows([]string{"Tables_in_database", "Table_type"}).AddRow(1, nil))
 	tables, err := dumper.GetTables()
 	assert.Equal(t, []string{}, tables)
 	assert.NotNil(t, err)
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLDumpCreateTable(t *testing.T) {
@@ -86,9 +80,9 @@ func TestMySQLDumpCreateTable(t *testing.T) {
 		"`name` varchar(255) NOT NULL, " +
 		"PRIMARY KEY (`id`), KEY `idx_name` (`name`) " +
 		") ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8"
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
-	sqlmock.ExpectQuery("SHOW CREATE TABLE `table`").WillReturnRows(
+	mock.ExpectQuery("SHOW CREATE TABLE `table`").WillReturnRows(
 		sqlmock.NewRows([]string{"Table", "Create Table"}).
 			AddRow("table", ddl),
 	)
@@ -96,97 +90,89 @@ func TestMySQLDumpCreateTable(t *testing.T) {
 	assert.Nil(t, dumper.DumpCreateTable(buffer, "table"))
 	assert.Contains(t, buffer.String(), "DROP TABLE IF EXISTS `table`")
 	assert.Contains(t, buffer.String(), ddl)
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLDumpCreateTableHandlingErrorWhenScanningRows(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
-	sqlmock.ExpectQuery("SHOW CREATE TABLE `table`").WillReturnRows(
+	mock.ExpectQuery("SHOW CREATE TABLE `table`").WillReturnRows(
 		sqlmock.NewRows([]string{"Table", "Create Table"}).AddRow("table", nil))
 	buffer := bytes.NewBuffer(make([]byte, 0))
 	assert.NotNil(t, dumper.DumpCreateTable(buffer, "table"))
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLGetColumnsForSelect(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
 	dumper.SelectMap = map[string]map[string]string{"table": {"col2": "NOW()"}}
-	sqlmock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnRows(
+	mock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnRows(
 		sqlmock.NewRows([]string{"col1", "col2", "col3"}).AddRow("a", "b", "c"))
 	columns, err := dumper.GetColumnsForSelect("table")
 	assert.Nil(t, err)
-	assert.Nil(t, db.Close())
 	assert.Equal(t, []string{"`col1`", "NOW() AS `col2`", "`col3`"}, columns)
 }
 
 func TestMySQLGetColumnsForSelectHandlingErrorWhenQuerying(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
 	dumper.SelectMap = map[string]map[string]string{"table": {"col2": "NOW()"}}
 	error := errors.New("broken")
-	sqlmock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnError(error)
+	mock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnError(error)
 	columns, err := dumper.GetColumnsForSelect("table")
 	assert.Equal(t, err, error)
-	assert.Nil(t, db.Close())
 	assert.Empty(t, columns)
 }
 
 func TestMySQLGetSelectQueryFor(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
 	dumper.SelectMap = map[string]map[string]string{"table": {"c2": "NOW()"}}
 	dumper.WhereMap = map[string]string{"table": "c1 > 0"}
-	sqlmock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnRows(
+	mock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnRows(
 		sqlmock.NewRows([]string{"c1", "c2"}).AddRow("a", "b"))
 	query, err := dumper.GetSelectQueryFor("table")
 	assert.Nil(t, err)
-	assert.Nil(t, db.Close())
 	assert.Equal(t, "SELECT `c1`, NOW() AS `c2` FROM `table` WHERE c1 > 0", query)
 }
 
 func TestMySQLGetSelectQueryForHandlingError(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
 	dumper.SelectMap = map[string]map[string]string{"table": {"c2": "NOW()"}}
 	dumper.WhereMap = map[string]string{"table": "c1 > 0"}
 	error := errors.New("broken")
-	sqlmock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnError(error)
+	mock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnError(error)
 	query, err := dumper.GetSelectQueryFor("table")
 	assert.Equal(t, error, err)
-	assert.Nil(t, db.Close())
 	assert.Equal(t, "", query)
 }
 
 func TestMySQLGetRowCount(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
 	dumper.WhereMap = map[string]string{"table": "c1 > 0"}
-	sqlmock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table` WHERE c1 > 0").WillReturnRows(
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table` WHERE c1 > 0").WillReturnRows(
 		sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1234))
 	count, err := dumper.GetRowCount("table")
 	assert.Nil(t, err)
-	assert.Nil(t, db.Close())
 	assert.Equal(t, uint64(1234), count)
 }
 
 func TestMySQLGetRowCountHandlingError(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
 	dumper.WhereMap = map[string]string{"table": "c1 > 0"}
-	sqlmock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table` WHERE c1 > 0").WillReturnRows(
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table` WHERE c1 > 0").WillReturnRows(
 		sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(nil))
 	count, err := dumper.GetRowCount("table")
 	assert.NotNil(t, err)
-	assert.Nil(t, db.Close())
 	assert.Equal(t, uint64(0), count)
 }
 
 func TestMySQLDumpTableHeader(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
-	sqlmock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table`").WillReturnRows(
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table`").WillReturnRows(
 		sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1234))
 	buffer := bytes.NewBuffer(make([]byte, 0))
 	count, err := dumper.DumpTableHeader(buffer, "table")
@@ -194,19 +180,17 @@ func TestMySQLDumpTableHeader(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Contains(t, buffer.String(), "Data for table `table`")
 	assert.Contains(t, buffer.String(), "1234 rows")
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLDumpTableHeaderHandlingError(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	dumper := NewMySQLDumper(db, nil)
-	sqlmock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table`").WillReturnRows(
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table`").WillReturnRows(
 		sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(nil))
 	buffer := bytes.NewBuffer(make([]byte, 0))
 	count, err := dumper.DumpTableHeader(buffer, "table")
 	assert.Equal(t, uint64(0), count)
 	assert.NotNil(t, err)
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLDumpTableLockWrite(t *testing.T) {
@@ -224,16 +208,16 @@ func TestMySQLDumpUnlockTables(t *testing.T) {
 }
 
 func TestMySQLDumpTableData(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	buffer := bytes.NewBuffer(make([]byte, 0))
 	dumper := NewMySQLDumper(db, nil)
 	dumper.ExtendedInsertRows = 2
 
-	sqlmock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnRows(
+	mock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "language"}).
 			AddRow(1, "Go"))
 
-	sqlmock.ExpectQuery("SELECT `id`, `language` FROM `table`").WillReturnRows(
+	mock.ExpectQuery("SELECT `id`, `language` FROM `table`").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "language"}).
 			AddRow(1, "Go").
 			AddRow(2, "Java").
@@ -251,31 +235,29 @@ func TestMySQLDumpTableData(t *testing.T) {
 	assert.Contains(t, buffer.String(), `'C++'`)
 	assert.Contains(t, buffer.String(), `'Rust'`)
 	assert.Contains(t, buffer.String(), `'Closure'`)
-	assert.Nil(t, db.Close())
 }
 
 func TestMySQLDumpTableDataHandlingErrorFromSelectAllDataFor(t *testing.T) {
-	db := getDB(t)
+	db, mock := getDB(t)
 	buffer := bytes.NewBuffer(make([]byte, 0))
 	dumper := NewMySQLDumper(db, nil)
 	error := errors.New("fail")
-	sqlmock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnError(error)
+	mock.ExpectQuery("SELECT \\* FROM `table` LIMIT 1").WillReturnError(error)
 	assert.Equal(t, error, dumper.DumpTableData(buffer, "table"))
-	assert.Nil(t, db.Close())
 }
 
 // WIP
 // TODO Replace all tests by an integration test or create a better database/sql mock
 //func TestMySQLDump(t *testing.T) {
-//    db := getDB(t)
+//    db, mock := getDB(t)
 //    buffer := bytes.NewBuffer(make([]byte, 0))
 //    dumper := NewMySQLDumper(db, nil)
 
-//    sqlmock.ExpectQuery("SHOW FULL TABLES").WillReturnRows(
+//    mock.ExpectQuery("SHOW FULL TABLES").WillReturnRows(
 //        sqlmock.NewRows([]string{"Tables_in_database", "Table_type"}).
 //            AddRow("table1", "BASE TABLE"))
 
-//    sqlmock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table1`").WillReturnRows(
+//    mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `table1`").WillReturnRows(
 //        sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(2))
 
 //    assert.Nil(t, dumper.Dump(buffer))
