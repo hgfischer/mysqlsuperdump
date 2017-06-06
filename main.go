@@ -5,7 +5,7 @@ import (
 	"log"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/hgfischer/mysqlsuperdump/dumper"
+	"./dumper"
 )
 
 func main() {
@@ -30,6 +30,7 @@ func main() {
 	dumpr.WhereMap = cfg.whereMap
 	dumpr.FilterMap = cfg.filterMap
 	dumpr.UseTableLock = cfg.useTableLock
+	dumpr.IgnoreMode = cfg.ignoreMode
 	dumpr.ExtendedInsertRows = cfg.extendedInsRows
 
 	w, err := cfg.initOutput()

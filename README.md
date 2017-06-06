@@ -6,7 +6,7 @@
 *MySQL Super Dump* is a tool to efficiently create *filtered* and *manipulated* database dumps. It relies in the power
 of the SQL native language to do this, using WHERE clauses and complete SELECT statements with aliases to do this.
 
-Currently it does not support every kind of MySQL structure (views, triggers, etc), but it supports the most basic 
+Currently it does not support every kind of MySQL structure (views, triggers, etc), but it supports the most basic
 stuff: schemas, tables and rows.
 
 ## History
@@ -16,7 +16,7 @@ production database in their development environments to have the same content
 and behavior of the production system in their machines.
 
 > To avoid security problems, the system administrator created a script to dump
-the production database, import in a temporary database, then replace all 
+the production database, import in a temporary database, then replace all
 sensitive data, like salts, passwords, customer names, emails, etc, for fake
 data, then export a dump of this temporary database to a file that is the dump
 developers would use.
@@ -31,6 +31,7 @@ using more resources from the server to run, until it exploded.
 * Replace dumped data with native SELECT functions (`[select]` config's section)
 * Disable data output of specific tables (`[filter]` config's section: `nodata`)
 * Ignore entire tables (`[filter]` config's section: `ignore`)
+* Or dump listed tables in `[filter]` config's section only (ignore_mode = false)
 
 
 ## Usage

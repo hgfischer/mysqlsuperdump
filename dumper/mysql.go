@@ -20,6 +20,7 @@ type mySQL struct {
 	WhereMap           map[string]string
 	FilterMap          map[string]string
 	UseTableLock       bool
+	IgnoreMode         bool
 	Log                *log.Logger
 	ExtendedInsertRows int
 }
@@ -220,13 +221,16 @@ func (d *mySQL) Dump(w io.Writer) (err error) {
 	}
 
 	for _, table := range tables {
-		if d.FilterMap[table] != "ignore" {
+		if (d.IgnoreMode && d.FilterMap[table] != "ignore") || (!d.IgnoreMode && d.FilterMap[table] != "") {
 			skipData := d.FilterMap[table] == "nodata"
 			if !skipData && d.UseTableLock {
 				d.LockTableReading(table)
 				d.FlushTable(table)
 			}
-			d.DumpCreateTable(w, table)
+			skipCreate := d.FilterMap[table] == "nocreate"
+			if !skipCreate {
+				d.DumpCreateTable(w, table)
+			}
 			if !skipData {
 				cnt, err := d.DumpTableHeader(w, table)
 				if err != nil {
