@@ -55,7 +55,7 @@ extended_insert_rows = 1000
 #use_table_lock = true
 max_open_conns = 50
 
-# Use this to restrict exported data. There are optional
+# Use this to restrict exported data. These are optional
 [where]
 sales_order           = created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
 customer_upload       = created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
