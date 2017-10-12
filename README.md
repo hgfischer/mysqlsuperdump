@@ -11,7 +11,7 @@ stuff: schemas, tables and rows.
 
 ## History
 
-> Once uppon a time there was a development team that liked to use dumps from the
+> Once upon a time there was a development team that liked to use dumps from the
 production database in their development environments to have the same content
 and behavior of the production system in their machines.
 
@@ -37,8 +37,8 @@ using more resources from the server to run, until it exploded.
 
 * Install the latest Go compiler installed (check instructions at: http://golang.org)
 * Check you environment with `go env`:
- * The repository will be clones at `$GOPATH/src/github.com/hgfischer/mysqlsuperdump`
- * The binary will be installed in `$GOBIN`
+* The repository will be cloneD at `$GOPATH/src/github.com/hgfischer/mysqlsuperdump`
+* The binary will be installed in `$GOBIN`
 * Then run `go get` to download, build and install `mysqlsuperdump`: `go get github.com/hgfischer/mysqlsuperdump`
 * Create a config file based on `example.cfg` and place where you like it.
 * Run mysqlsuperdump -h to see command line options and _voilá_.
@@ -96,7 +96,7 @@ customer_private = ignore
 ## TO DO
 
 * Extend MySQL support, with other objects like views, triggers, etc
-* Refactor dumper interface to support another SQL databases
+* Refactor dumper interface to support other SQL databases
 * Add support for PostgreSQL
 
 
