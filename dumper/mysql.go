@@ -218,28 +218,34 @@ func (d *mySQL) Dump(w io.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	
+
+	globalFilter := d.FilterMap["*"]
 	for _, table := range tables {
-		if d.FilterMap[strings.ToLower(table)] != "ignore" {
-			skipData := d.FilterMap[strings.ToLower(table)] == "nodata"
-			if !skipData && d.UseTableLock {
-				d.LockTableReading(table)
-				d.FlushTable(table)
+		tableFilter := d.FilterMap[strings.ToLower(table)]
+
+		if tableFilter == "ignore" || (tableFilter == "" && globalFilter == "ignore") {
+			continue
+		}
+
+		skipData := tableFilter == "nodata" || (tableFilter == "" && globalFilter == "nodata")
+
+		if !skipData && d.UseTableLock {
+			d.LockTableReading(table)
+			d.FlushTable(table)
+		}
+		d.DumpCreateTable(w, table)
+		if !skipData {
+			cnt, err := d.DumpTableHeader(w, table)
+			if err != nil {
+				return err
 			}
-			d.DumpCreateTable(w, table)
-			if !skipData {
-				cnt, err := d.DumpTableHeader(w, table)
-				if err != nil {
-					return err
-				}
-				if cnt > 0 {
-					d.DumpTableLockWrite(w, table)
-					d.DumpTableData(w, table)
-					fmt.Fprintln(w)
-					d.DumpUnlockTables(w)
-					if d.UseTableLock {
-						d.UnlockTables()
-					}
+			if cnt > 0 {
+				d.DumpTableLockWrite(w, table)
+				d.DumpTableData(w, table)
+				fmt.Fprintln(w)
+				d.DumpUnlockTables(w)
+				if d.UseTableLock {
+					d.UnlockTables()
 				}
 			}
 		}

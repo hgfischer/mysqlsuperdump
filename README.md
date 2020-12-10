@@ -31,6 +31,7 @@ using more resources from the server to run, until it exploded.
 * Replace dumped data with native SELECT functions (`[select]` config's section)
 * Disable data output of specific tables (`[filter]` config's section: `nodata`)
 * Ignore entire tables (`[filter]` config's section: `ignore`)
+* Ignore all tables except those explicitly listed (`[filter]` config's `* = ignore` and section: `include`)
 
 
 ## Usage
@@ -91,6 +92,26 @@ system_dump_version.created_at = NOW()
 [filter]
 customer_stats = nodata
 customer_private = ignore
+```
+
+If you would like to have an allowlist of explicitly listed tables, you can put
+the following in your `[filter]` section:
+```
+[filter]
+* = ignore
+customer_address = include
+customer = include
+sales_order_address = include
+system_dump_version = include
+```
+
+The same can be done for `nodata`:
+```
+[filter]
+# All tables are data only by default
+* = nodata
+# But include the data for the customer table
+customer = include
 ```
 
 ## TO DO
