@@ -219,14 +219,16 @@ func (d *mySQL) Dump(w io.Writer) (err error) {
 		return
 	}
 
+	globalFilter := d.FilterMap["*"]
 	for _, table := range tables {
-		if d.FilterMap[strings.ToLower(table)] == "ignore" {
+		tableFilter := d.FilterMap[strings.ToLower(table)]
+
+		if tableFilter == "ignore" || (tableFilter == "" && globalFilter == "ignore") {
 			continue
 		}
-		if d.FilterMap[strings.ToLower(table)] == "" && d.FilterMap["*"] == "ignore" {
-			continue
-		}
-		skipData := d.FilterMap[strings.ToLower(table)] == "nodata"
+
+		skipData := tableFilter == "nodata" || (tableFilter == "" && globalFilter == "nodata")
+
 		if !skipData && d.UseTableLock {
 			d.LockTableReading(table)
 			d.FlushTable(table)
