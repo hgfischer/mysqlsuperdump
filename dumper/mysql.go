@@ -33,25 +33,25 @@ func NewMySQLDumper(db *sql.DB, logger *log.Logger) *Client {
 	return &Client{DB: db, Log: logger, ExtendedInsertRows: ExtendedInsertDefaultRowCount}
 }
 
-// Lock the table (read only)
+// LockTableReading will lock the table (read only)
 func (d *Client) LockTableReading(table string) (sql.Result, error) {
 	d.Log.Println("Locking table", table, "for reading")
 	return d.DB.Exec(fmt.Sprintf("LOCK TABLES `%s` READ", table))
 }
 
-// Flush table to ensure that the all active index pages are written to disk
+// FlushTable to ensure that the all active index pages are written to disk
 func (d *Client) FlushTable(table string) (sql.Result, error) {
 	d.Log.Println("Flushing table", table)
 	return d.DB.Exec(fmt.Sprintf("FLUSH TABLES `%s`", table))
 }
 
-// Release the global read locks
+// UnlockTables to release the global read locks
 func (d *Client) UnlockTables() (sql.Result, error) {
 	d.Log.Println("Unlocking tables")
 	return d.DB.Exec(fmt.Sprintf("UNLOCK TABLES"))
 }
 
-// Get list of existing tables in database
+// GetTables of existing tables in database
 func (d *Client) GetTables() (tables []string, err error) {
 	tables = make([]string, 0)
 	var rows *sql.Rows
@@ -71,7 +71,7 @@ func (d *Client) GetTables() (tables []string, err error) {
 	return
 }
 
-// Dump the script to create the table
+// DumpCreateTable will generate the script to create the table
 func (d *Client) DumpCreateTable(w io.Writer, table string) error {
 	d.Log.Println("Dumping structure for table", table)
 	fmt.Fprintf(w, "\n--\n-- Structure for table `%s`\n--\n\n", table)
@@ -85,7 +85,7 @@ func (d *Client) DumpCreateTable(w io.Writer, table string) error {
 	return nil
 }
 
-// Get the column list for the SELECT, applying the select map from config file.
+// GetColumnsForSelect applying the select map from config file.
 func (d *Client) GetColumnsForSelect(table string) (columns []string, err error) {
 	var rows *sql.Rows
 	if rows, err = d.DB.Query(fmt.Sprintf("SELECT * FROM `%s` LIMIT 1", table)); err != nil {
@@ -106,7 +106,7 @@ func (d *Client) GetColumnsForSelect(table string) (columns []string, err error)
 	return
 }
 
-// Get the complete SELECT query to fetch data from database
+// GetSelectQueryFor query to fetch data from database
 func (d *Client) GetSelectQueryFor(table string) (query string, err error) {
 	cols, err := d.GetColumnsForSelect(table)
 	if err != nil {
@@ -119,7 +119,7 @@ func (d *Client) GetSelectQueryFor(table string) (query string, err error) {
 	return
 }
 
-// Get the number of rows the select will return
+// GetRowCount the select will return
 func (d *Client) GetRowCount(table string) (count uint64, err error) {
 	query := fmt.Sprintf("SELECT COUNT(*) FROM `%s`", table)
 	if where, ok := d.WhereMap[strings.ToLower(table)]; ok {
@@ -132,7 +132,7 @@ func (d *Client) GetRowCount(table string) (count uint64, err error) {
 	return
 }
 
-// Dump comments including table name and row count to w
+// DumpTableHeader name and row count to w
 func (d *Client) DumpTableHeader(w io.Writer, table string) (count uint64, err error) {
 	fmt.Fprintf(w, "\n--\n-- Data for table `%s`", table)
 	if count, err = d.GetRowCount(table); err != nil {
@@ -142,12 +142,12 @@ func (d *Client) DumpTableHeader(w io.Writer, table string) (count uint64, err e
 	return
 }
 
-// Write the query to lock writes in the specified table
+// DumpTableLockWrite the query to lock writes in the specified table
 func (d *Client) DumpTableLockWrite(w io.Writer, table string) {
 	fmt.Fprintf(w, "LOCK TABLES `%s` WRITE;\n", table)
 }
 
-// Write the query to unlock tables
+// DumpUnlockTables the query to unlock tables
 func (d *Client) DumpUnlockTables(w io.Writer) {
 	fmt.Fprintln(w, "UNLOCK TABLES;")
 }
@@ -166,7 +166,7 @@ func (d *Client) selectAllDataFor(table string) (rows *sql.Rows, columns []strin
 	return
 }
 
-// Get the table data
+// DumpTableData for all tables
 func (d *Client) DumpTableData(w io.Writer, table string) (err error) {
 	d.Log.Println("Dumping data for table", table)
 	rows, columns, err := d.selectAllDataFor(table)
@@ -210,6 +210,7 @@ func (d *Client) DumpTableData(w io.Writer, table string) (err error) {
 	return
 }
 
+// Dump all table structure and data.
 func (d *Client) Dump(w io.Writer) (err error) {
 	fmt.Fprintf(w, "SET NAMES utf8;\n")
 	fmt.Fprintf(w, "SET FOREIGN_KEY_CHECKS = 0;\n")
