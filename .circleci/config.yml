@@ -1,0 +1,26 @@
+version: 2.1
+
+workflows:
+  test:
+    jobs:
+      - test
+
+jobs:
+  test:
+    docker:
+      - image: golang:1.17
+    steps:
+      - checkout
+      - run:
+          name: Lint
+          command: |
+            go install golang.org/x/lint/golint@latest
+            make lint fmt vet
+      - run:
+          name: Test
+          command: |
+            go install gotest.tools/gotestsum@v1.7.0
+            mkdir -p test-results/junit
+            gotestsum --junitfile test-results/junit/junit-report.xml
+      - store_test_results:
+          path: test-results
